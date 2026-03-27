@@ -1,0 +1,351 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 12%;
+    --primary: 211 100% 42%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 9% 46%;
+    --muted: 220 9% 89%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 211 100% 42%;
+    --accent-foreground: 0 0% 100%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 211 100% 42%;
+  }
+
+  .dark {
+    --background: 0 0% 12%;
+    --foreground: 210 40% 98%;
+    --card: 0 0% 12%;
+    --card-foreground: 210 40% 98%;
+    --primary: 211 100% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 9% 46%;
+    --muted: 220 9% 20%;
+    --muted-foreground: 220 9% 65%;
+    --accent: 211 100% 50%;
+    --accent-foreground: 0 0% 100%;
+    --border: 220 13% 20%;
+    --input: 220 13% 20%;
+    --ring: 211 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  html, body {
+    height: 100%;
+  }
+
+  #app {
+    height: 100%;
+  }
+}
+
+/* 自定义滚动条 */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #d1d5db transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: #d1d5db;
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: #9ca3af;
+  }
+}
+
+/* ==================== 苹果风格动态效果 ==================== */
+
+/* 磨砂玻璃效果 */
+@layer components {
+  /* 浅色磨砂 - 面板 */
+  .glass {
+    @apply bg-white/72 backdrop-blur-xl;
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  /* 深色磨砂 */
+  .glass-dark {
+    @apply bg-black/40 backdrop-blur-xl;
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  /* 轻量级磨砂 - 导航/滑块 */
+  .glass-light {
+    @apply bg-white/60 backdrop-blur-lg;
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .glass-light-dark {
+    @apply bg-black/30 backdrop-blur-lg;
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* 极轻量磨砂 */
+  .glass-subtle {
+    @apply bg-white/40 backdrop-blur-md;
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .glass-subtle-dark {
+    @apply bg-black/20 backdrop-blur-md;
+    -webkit-backdrop-filter: blur(8px);
+  }
+}
+
+/* 按钮动态效果 */
+@layer components {
+  .btn-apple {
+    @apply rounded-xl px-4 py-2 font-medium transition-all duration-200 ease-out;
+    @apply active:scale-[0.96] active:shadow-inner;
+  }
+
+  .btn-apple:hover {
+    @apply shadow-lg scale-[1.02];
+  }
+
+  .btn-apple:active {
+    @apply scale-[0.96];
+  }
+
+  .btn-apple:disabled {
+    @apply opacity-50 cursor-not-allowed pointer-events-none;
+  }
+
+  /* 主按钮 */
+  .btn-apple-primary {
+    @apply btn-apple bg-primary text-white;
+    @apply hover:bg-primary-light hover:shadow-primary/25;
+  }
+
+  /* 次按钮 */
+  .btn-apple-secondary {
+    @apply btn-apple bg-white text-gray-700 border border-gray-200;
+    @apply hover:bg-gray-50 hover:shadow-md;
+  }
+
+  /* 暗色模式次按钮 */
+  .dark .btn-apple-secondary {
+    @apply bg-gray-800 border-gray-700 text-gray-200;
+    @apply hover:bg-gray-700;
+  }
+}
+
+/* 任务滑块动画 - 增强版 */
+@layer components {
+  .task-slider {
+    @apply transition-all duration-200 ease-out;
+  }
+
+  .task-slider:hover {
+    @apply shadow-lg bg-opacity-90;
+  }
+
+  .task-slider.dragging {
+    @apply shadow-2xl scale-[1.02];
+    transition: none;
+    @apply glass-light;
+  }
+
+  /* 滑块拖拽弹性效果 */
+  .task-slider.dragging-spring {
+    animation: springBounce 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+}
+
+/* 面板弹出动画 */
+@layer components {
+  .panel-enter {
+    animation: panelEnter 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  .panel-leave {
+    animation: panelLeave 0.2s ease-in forwards;
+  }
+
+  .panel-mask-enter {
+    animation: fadeIn 0.2s ease-out forwards;
+  }
+
+  .panel-mask-leave {
+    animation: fadeOut 0.2s ease-in forwards;
+  }
+}
+
+/* 弹性动画 keyframes */
+@keyframes springBounce {
+  0% {
+    transform: scale(1.02);
+  }
+  30% {
+    transform: scale(0.98);
+  }
+  50% {
+    transform: scale(1.01);
+  }
+  70% {
+    transform: scale(0.995);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes panelEnter {
+  0% {
+    opacity: 0;
+    transform: translateX(20px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes panelLeave {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(20px) scale(0.95);
+  }
+}
+
+@keyframes fadeOut {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* 微光扫过效果 */
+@layer components {
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .shimmer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.3),
+      transparent
+    );
+    animation: shimmer 2s infinite;
+  }
+
+  .dark .shimmer::after {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.1),
+      transparent
+    );
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+/* 导航栏悬停效果 */
+@layer components {
+  .nav-item-apple {
+    @apply transition-all duration-200 ease-out;
+  }
+
+  .nav-item-apple:hover {
+    @apply bg-black/5 dark:bg-white/10;
+  }
+
+  .nav-item-apple.active {
+    @apply bg-primary/10 text-primary dark:bg-primary/20;
+  }
+}
+
+/* 输入框聚焦效果 */
+@layer components {
+  .input-apple {
+    @apply rounded-xl border border-gray-200 bg-white px-3 py-2;
+    @apply transition-all duration-200 ease-out;
+    @apply focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none;
+  }
+
+  .dark .input-apple {
+    @apply bg-gray-800 border-gray-700 text-gray-200;
+    @apply focus:border-primary-light;
+  }
+}
+
+/* 颜色选择器动态 */
+@layer components {
+  .color-swatch-apple {
+    @apply transition-all duration-200 ease-out cursor-pointer;
+    @apply hover:scale-110 active:scale-95;
+  }
+
+  .color-swatch-apple.selected {
+    @apply ring-2 ring-offset-2 ring-primary;
+  }
+}
+
+/* 滚动条暗色模式 */
+.dark @layer utilities {
+  .scrollbar-thin {
+    scrollbar-color: #4b5563 transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: #4b5563;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: #6b7280;
+  }
+}
