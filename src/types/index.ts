@@ -1,5 +1,5 @@
-// 任务颜色类型
-export type TaskColor = 'blue' | 'green' | 'orange' | 'red' | 'purple' | 'gray'
+// 任务颜色类型（预设颜色或自定义 hex 值）
+export type TaskColor = 'blue' | 'green' | 'orange' | 'red' | 'purple' | 'gray' | string
 
 // 任务接口
 export interface Task {

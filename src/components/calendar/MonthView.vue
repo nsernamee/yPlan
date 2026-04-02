@@ -4,11 +4,36 @@ import { useTaskStore } from '@/stores/task'
 import { useViewStore } from '@/stores/view'
 import { useDragStore } from '@/stores/drag'
 import { TASK_COLORS } from '@/types'
+import type { Task } from '@/types'
 import dayjs from 'dayjs'
 
 const taskStore = useTaskStore()
 const viewStore = useViewStore()
 const dragStore = useDragStore()
+
+// 预设颜色
+const presetColors = ['blue', 'green', 'orange', 'red', 'purple', 'gray']
+
+// 获取任务颜色样式
+function getTaskColorStyle(task: Task) {
+  const isCustomColor = !presetColors.includes(task.color)
+  
+  if (isCustomColor) {
+    return {
+      bg: '',
+      text: '',
+      customBg: `${task.color}20`,
+      customText: task.color
+    }
+  }
+  
+  return {
+    bg: TASK_COLORS[task.color as keyof typeof TASK_COLORS].bg,
+    text: TASK_COLORS[task.color as keyof typeof TASK_COLORS].text,
+    customBg: '',
+    customText: ''
+  }
+}
 
 // 月视图网格（6行 x 7列）
 const monthGrid = computed(() => {
@@ -163,10 +188,14 @@ onUnmounted(() => {
             @pointerdown="handleTaskDragStart(task, $event)"
             :class="[
               'text-xs px-1.5 py-0.5 rounded truncate cursor-pointer select-none',
-              TASK_COLORS[task.color].bg,
-              TASK_COLORS[task.color].text,
+              getTaskColorStyle(task).bg,
+              getTaskColorStyle(task).text,
               'hover:opacity-80 active:opacity-60'
             ]"
+            :style="getTaskColorStyle(task).customBg ? {
+              backgroundColor: getTaskColorStyle(task).customBg,
+              color: getTaskColorStyle(task).customText
+            } : undefined"
           >
             {{ task.title }}
           </div>

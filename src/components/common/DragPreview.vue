@@ -32,10 +32,29 @@ const previewStyle = computed(() => {
   }
 })
 
+// 预设颜色
+const presetColors = ['blue', 'green', 'orange', 'red', 'purple', 'gray']
+
+// 判断是否为自定义颜色
+const isCustomColor = computed(() => {
+  return dragStore.draggingTask && !presetColors.includes(dragStore.draggingTask.color)
+})
+
 // 任务颜色样式
 const colorStyle = computed(() => {
   if (!dragStore.draggingTask) return {}
-  return TASK_COLORS[dragStore.draggingTask.color]
+  
+  if (isCustomColor.value) {
+    return {
+      bg: '',
+      border: '',
+      text: '',
+      customBg: dragStore.draggingTask.color,
+      customBorder: dragStore.draggingTask.color,
+    }
+  }
+  
+  return TASK_COLORS[dragStore.draggingTask.color as keyof typeof TASK_COLORS]
 })
 
 // 任务信息
@@ -63,17 +82,23 @@ const taskTime = computed(() => {
       <div
         :class="[
           'absolute inset-0 backdrop-blur-xl',
-          colorStyle.bg,
+          !isCustomColor && colorStyle.bg,
           'opacity-95'
         ]"
+        :style="isCustomColor ? {
+          backgroundColor: `${colorStyle.customBg}20`
+        } : undefined"
       />
       
       <!-- 边框 -->
       <div
         :class="[
           'absolute inset-0 border-l-4 rounded-2xl',
-          colorStyle.border
+          !isCustomColor && colorStyle.border
         ]"
+        :style="isCustomColor ? {
+          borderLeftColor: colorStyle.customBorder
+        } : undefined"
       />
       
       <!-- 内容 -->

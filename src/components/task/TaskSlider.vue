@@ -26,8 +26,29 @@ const taskStore = useTaskStore()
 const dragStore = useDragStore()
 const { isDragging, dragType, hasMoved, dragMode, startDrag } = useDrag()
 
+// 预设颜色
+const presetColors = ['blue', 'green', 'orange', 'red', 'purple', 'gray']
+
+// 判断是否为自定义颜色
+const isCustomColor = computed(() => {
+  return !presetColors.includes(props.task.color)
+})
+
 // 颜色样式
-const colorStyle = computed(() => TASK_COLORS[props.task.color])
+const colorStyle = computed(() => {
+  if (isCustomColor.value) {
+    // 自定义颜色：直接使用 hex 值
+    return {
+      bg: '',
+      border: '',
+      text: '',
+      customBg: props.task.color,
+      customBorder: props.task.color,
+    }
+  }
+  // 预设颜色：使用 TASK_COLORS
+  return TASK_COLORS[props.task.color as keyof typeof TASK_COLORS]
+})
 
 // 元素引用
 const sliderRef = ref<HTMLElement | null>(null)
@@ -272,8 +293,8 @@ onUnmounted(() => {
     ref="sliderRef"
     :class="[
       'task-slider rounded-xl border-l-4 overflow-hidden',
-      colorStyle.bg,
-      colorStyle.border,
+      !isCustomColor && colorStyle.bg,
+      !isCustomColor && colorStyle.border,
       'glass-light',
       'dark:glass-light-dark',
       {
@@ -284,6 +305,10 @@ onUnmounted(() => {
         'dragging-resize': isDragging && (dragType === 'resize-start' || dragType === 'resize-end')
       }
     ]"
+    :style="isCustomColor ? {
+      backgroundColor: `${colorStyle.customBg}20`,
+      borderLeftColor: colorStyle.customBorder
+    } : undefined"
     @pointerdown="(e) => handlePointerDown(e, 'move')"
     @click.stop
   >
