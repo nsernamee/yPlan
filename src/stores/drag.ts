@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Task, DragType } from '@/types'
+import type { Task, TaskSchedule, DragType } from '@/types'
 
 export type DragMode = 'grid' | 'free'
 
@@ -22,8 +22,11 @@ export const useDragStore = defineStore('drag', () => {
   const hasMoved = ref(false)
   const isDraggingFromList = ref(false) // 是否从任务列表拖拽
 
-  // 拖拽任务信息
+  // 拖拽任务和日程信息
   const draggingTask = ref<Task | null>(null)
+  const draggingScheduleId = ref<string | null>(null)
+  const draggingStartTime = ref<string | null>(null)
+  const draggingEndTime = ref<string | null>(null)
   const originalPosition = ref<DragPosition>({ x: 0, y: 0 })
   const currentPosition = ref<DragPosition>({ x: 0, y: 0 })
   const offset = ref<DragOffset>({ x: 0, y: 0 })
@@ -36,9 +39,12 @@ export const useDragStore = defineStore('drag', () => {
   const isFreeDrag = computed(() => dragMode.value === 'free')
   const isGridDrag = computed(() => dragMode.value === 'grid')
 
-  // 开始拖拽
+  // 开始拖拽（支持日程）
   function startDrag(params: {
     task: Task
+    scheduleId?: string
+    startTime?: string
+    endTime?: string
     type: DragType
     mode: DragMode
     startPosition: DragPosition
@@ -49,6 +55,9 @@ export const useDragStore = defineStore('drag', () => {
     hasMoved.value = false
     isDraggingFromList.value = false
     draggingTask.value = params.task
+    draggingScheduleId.value = params.scheduleId || null
+    draggingStartTime.value = params.startTime || null
+    draggingEndTime.value = params.endTime || null
     originalPosition.value = params.startPosition
     currentPosition.value = params.startPosition
     offset.value = { x: 0, y: 0 }
@@ -62,6 +71,7 @@ export const useDragStore = defineStore('drag', () => {
     hasMoved.value = true
     isDraggingFromList.value = true
     draggingTask.value = task
+    draggingScheduleId.value = null // 从列表拖出的任务没有日程
   }
 
   // 更新拖拽位置
@@ -96,6 +106,9 @@ export const useDragStore = defineStore('drag', () => {
     hasMoved.value = false
     isDraggingFromList.value = false
     draggingTask.value = null
+    draggingScheduleId.value = null
+    draggingStartTime.value = null
+    draggingEndTime.value = null
     originalPosition.value = { x: 0, y: 0 }
     currentPosition.value = { x: 0, y: 0 }
     offset.value = { x: 0, y: 0 }
@@ -116,6 +129,9 @@ export const useDragStore = defineStore('drag', () => {
     hasMoved,
     isDraggingFromList,
     draggingTask,
+    draggingScheduleId,
+    draggingStartTime,
+    draggingEndTime,
     originalPosition,
     currentPosition,
     offset,

@@ -3,8 +3,7 @@ import { computed } from 'vue'
 import { useTaskStore } from '@/stores/task'
 import { useDragStore } from '@/stores/drag'
 import type { Task } from '@/types'
-import { isPlannedTask } from '@/types'
-import { Plus } from 'lucide-vue-next'
+
 
 const taskStore = useTaskStore()
 const dragStore = useDragStore()
@@ -36,7 +35,7 @@ function getTaskColor(task: Task): string {
   return colorMap[task.color] || '#6B7280'
 }
 
-// 点击任务
+// 点击任务（只编辑任务属性，不传 schedule）
 function handleTaskClick(task: Task) {
   taskStore.openEditPanel(task)
 }
@@ -53,10 +52,7 @@ function handleDragStart(task: Task, event: DragEvent) {
   dragStore.startDragFromList(task)
 }
 
-// 新建任务
-function handleCreateTask() {
-  taskStore.openCreatePanelForList()
-}
+
 </script>
 
 <template>
@@ -99,7 +95,7 @@ function handleCreateTask() {
               
               <!-- 未计划标签 -->
               <span
-                v-if="!isPlannedTask(task)"
+                v-if="!taskStore.isTaskScheduled(task.id)"
                 class="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full whitespace-nowrap"
               >
                 未计划
@@ -123,19 +119,8 @@ function handleCreateTask() {
         class="text-center py-12"
       >
         <p class="text-gray-400 dark:text-gray-600 text-sm">暂无任务</p>
-        <p class="text-gray-400 dark:text-gray-600 text-xs mt-1">点击下方按钮创建任务</p>
+        <p class="text-gray-400 dark:text-gray-600 text-xs mt-1">点击顶部按钮创建任务</p>
       </div>
-    </div>
-
-    <!-- 底部新建按钮 -->
-    <div class="p-3 border-t border-gray-200 dark:border-gray-800">
-      <button
-        @click="handleCreateTask"
-        class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-light transition-all duration-200 btn-apple"
-      >
-        <Plus class="w-4 h-4" />
-        <span class="text-sm font-medium">新建任务</span>
-      </button>
     </div>
   </div>
 </template>

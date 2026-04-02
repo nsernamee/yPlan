@@ -6,8 +6,9 @@ import { useDragStore } from '@/stores/drag'
 import TaskSlider from '@/components/task/TaskSlider.vue'
 import DropIndicator from '@/components/common/DropIndicator.vue'
 import { HOUR_HEIGHT, HEADER_HEIGHT } from '@/utils/constants'
-import { calculateTaskPosition, pixelsToTime, calculateDuration, offsetTime } from '@/utils/time'
+import { calculateTaskPosition, calculateDuration, offsetTime } from '@/utils/time'
 import dayjs from 'dayjs'
+import type { TaskWithSchedule } from '@/types'
 
 const taskStore = useTaskStore()
 const viewStore = useViewStore()
@@ -16,48 +17,52 @@ const dragStore = useDragStore()
 // 时间轴容器
 const timeAxisRef = ref<HTMLElement | null>(null)
 
-// 当前日期的任务
+// 当前日期的日程实例（TaskWithSchedule[]）
 const currentTasks = computed(() => {
   const dateStr = dayjs(viewStore.currentDate).format('YYYY-MM-DD')
-  return taskStore.getTasksByDateRange(dateStr, dateStr)
+  return taskStore.getScheduleInstancesForDate(dateStr)
 })
 
 // 计算任务位置和高度
-function getTaskStyle(task: typeof currentTasks.value[0]) {
-  // 确保任务有时间（currentTasks 已过滤未计划任务）
-  if (!task.startTime || !task.endTime) return {}
-  
-  const { top, height } = calculateTaskPosition(task.startTime, task.endTime)
+function getTaskStyle(item: TaskWithSchedule) {
+  const { top, height } = calculateTaskPosition(item.schedule.startTime, item.schedule.endTime)
   return {
     top: `${HEADER_HEIGHT + top}px`,
     height: `${height}px`,
   }
 }
 
-// 计算拖拽任务的持续时间
+// 计算拖拽日程的持续时间
 const draggingTaskDuration = computed(() => {
-  if (!dragStore.draggingTask || !dragStore.draggingTask.startTime || !dragStore.draggingTask.endTime) return 0
-  return calculateDuration(dragStore.draggingTask.startTime, dragStore.draggingTask.endTime)
+  // 从 dragStore 获取正在拖拽的日程信息
+  if (!dragStore.draggingTask || !dragStore.draggingScheduleId) return 0
+  
+  // 从 taskStore 查找对应的 schedule
+  const schedule = taskStore.schedules.find(s => s.id === dragStore.draggingScheduleId)
+  if (!schedule) return 0
+  
+  return calculateDuration(schedule.startTime, schedule.endTime)
 })
 
 // 处理任务拖拽结束
-function handleTaskDragEnd(payload: { taskId: string; position: { x: number; y: number } }) {
-  if (!dragStore.draggingTask || !dragStore.draggingTask.startTime || !dragStore.draggingTask.endTime) return
+function handleTaskDragEnd(payload: { taskId: string; scheduleId: string; position: { x: number; y: number } }) {
+  if (!dragStore.draggingScheduleId) return
   
-  const task = dragStore.draggingTask
+  const schedule = taskStore.schedules.find(s => s.id === dragStore.draggingScheduleId)
+  if (!schedule) return
   
   // 直接使用拖拽过程中计算好的目标时间
-  const newStartTime = dragStore.targetTime || task.startTime
+  const newStartTime = dragStore.targetTime || schedule.startTime
   
   // 计算持续时间
-  const duration = calculateDuration(task.startTime, task.endTime)
+  const duration = calculateDuration(schedule.startTime, schedule.endTime)
   
   // 计算新的结束时间
   const newEndTime = offsetTime(newStartTime, duration)
   
-  // 更新任务时间
-  taskStore.updateTask({
-    id: payload.taskId,
+  // 更新日程时间
+  taskStore.updateSchedule({
+    id: dragStore.draggingScheduleId,
     startTime: newStartTime,
     endTime: newEndTime,
   })
@@ -85,7 +90,7 @@ function handleDragOver(event: DragEvent) {
   event.dataTransfer!.dropEffect = 'move'
 }
 
-// 处理拖放任务
+// 处理拖放任务（创建新日程）
 function handleDrop(event: DragEvent) {
   if (!dragStore.isDraggingFromList || !dragStore.draggingTask || !timeAxisRef.value) return
   
@@ -99,8 +104,8 @@ function handleDrop(event: DragEvent) {
   const startTime = `${hour.toString().padStart(2, '0')}:00`
   const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`
   
-  // 调度任务（设置日期和时间）
-  taskStore.scheduleTask(dragStore.draggingTask.id, dateStr, startTime, endTime)
+  // 为任务创建日程实例
+  taskStore.scheduleTaskOnDate(dragStore.draggingTask.id, dateStr, startTime, endTime)
   
   // 结束拖拽
   dragStore.endDrag()
@@ -174,10 +179,11 @@ onMounted(() => {
           
           <!-- 任务滑块 -->
           <TaskSlider
-            v-for="task in currentTasks"
-            :key="task.id"
-            :task="task"
-            :style="getTaskStyle(task)"
+            v-for="item in currentTasks"
+            :key="item.schedule.id"
+            :task="item.task"
+            :schedule="item.schedule"
+            :style="getTaskStyle(item)"
             class="absolute left-2 right-2"
             @drag-end="handleTaskDragEnd"
           />

@@ -60,8 +60,8 @@ const colorStyle = computed(() => {
 // 任务信息
 const taskTitle = computed(() => dragStore.draggingTask?.title || '')
 const taskTime = computed(() => {
-  if (!dragStore.draggingTask) return ''
-  return `${dragStore.draggingTask.startTime} - ${dragStore.draggingTask.endTime}`
+  if (!dragStore.draggingStartTime || !dragStore.draggingEndTime) return ''
+  return `${dragStore.draggingStartTime} - ${dragStore.draggingEndTime}`
 })
 </script>
 

@@ -1,7 +1,7 @@
 import { ref, onUnmounted } from 'vue'
 import { MOVE_THRESHOLD } from '@/utils/constants'
 import { useDragStore, type DragMode } from '@/stores/drag'
-import type { Task, DragType } from '@/types'
+import type { Task, TaskSchedule, DragType } from '@/types'
 
 export type { DragType }
 
@@ -29,6 +29,11 @@ export interface DragOptions {
   mode?: DragMode
   // 任务信息（用于全局拖拽）
   task?: Task
+  // 日程信息（用于全局拖拽，标识正在拖拽哪个日程实例）
+  scheduleId?: string
+  // 日程时间（用于全局拖拽预览）
+  startTime?: string
+  endTime?: string
   // 自由拖拽阈值
   freeDragThreshold?: number
   // 是否允许自动切换到自由拖拽模式（默认 false）
@@ -73,11 +78,17 @@ export function useDrag() {
     if (options.task) {
       console.log('Calling dragStore.startDrag', { 
         task: options.task.title, 
+        scheduleId: options.scheduleId,
+        startTime: options.startTime,
+        endTime: options.endTime,
         type, 
         mode: dragMode.value 
       })
       dragStore.startDrag({
         task: options.task,
+        scheduleId: options.scheduleId,
+        startTime: options.startTime,
+        endTime: options.endTime,
         type,
         mode: dragMode.value,
         startPosition: { x: startX, y: startY },
@@ -85,7 +96,8 @@ export function useDrag() {
       console.log('After dragStore.startDrag', {
         isDragging: dragStore.isDragging,
         dragMode: dragStore.dragMode,
-        hasDraggingTask: !!dragStore.draggingTask
+        hasDraggingTask: !!dragStore.draggingTask,
+        draggingScheduleId: dragStore.draggingScheduleId
       })
     }
 

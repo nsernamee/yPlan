@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onUnmounted } from 'vue'
 import { useTaskStore } from '@/stores/task'
 import { useViewStore } from '@/stores/view'
 import { useDragStore } from '@/stores/drag'
 import { TASK_COLORS } from '@/types'
-import type { Task } from '@/types'
+import type { Task, TaskWithSchedule } from '@/types'
 import dayjs from 'dayjs'
 
 const taskStore = useTaskStore()
@@ -62,9 +62,9 @@ const weekDays = ['日', '一', '二', '三', '四', '五', '六']
 // 目标日期索引
 const targetDateIndex = ref<number | null>(null)
 
-// 获取某天的任务
-function getTasksForDate(dateStr: string) {
-  return taskStore.getTasksByDateRange(dateStr, dateStr)
+// 获取某天的日程实例
+function getTasksForDate(dateStr: string): TaskWithSchedule[] {
+  return taskStore.getScheduleInstancesForDate(dateStr)
 }
 
 // 点击日期
@@ -73,19 +73,22 @@ function handleDateClick(dateStr: string) {
   viewStore.setViewType('day')
 }
 
-// 点击任务
-function handleTaskClick(task: typeof taskStore.tasks[0], event: Event) {
+// 点击任务（传递 task + schedule）
+function handleTaskClick(item: TaskWithSchedule, event: Event) {
   event.stopPropagation()
-  taskStore.openEditPanel(task)
+  taskStore.openEditPanel(item.task, item.schedule)
 }
 
-// 任务拖拽开始
-function handleTaskDragStart(task: typeof taskStore.tasks[0], event: PointerEvent) {
+// 任务拖拽开始（传递 scheduleId）
+function handleTaskDragStart(item: TaskWithSchedule, event: PointerEvent) {
   event.stopPropagation()
   
   // 初始化拖拽
   dragStore.startDrag({
-    task,
+    task: item.task,
+    scheduleId: item.schedule.id,
+    startTime: item.schedule.startTime,
+    endTime: item.schedule.endTime,
     type: 'move',
     mode: 'free',
     startPosition: { x: event.clientX, y: event.clientY },
@@ -116,16 +119,14 @@ function handleGlobalDragMove(e: PointerEvent) {
 
 // 全局拖拽结束
 function handleGlobalDragEnd() {
-  // 如果有目标日期，移动任务
-  if (targetDateIndex.value !== null && dragStore.draggingTask) {
+  // 如果有目标日期，移动日程
+  if (targetDateIndex.value !== null && dragStore.draggingScheduleId) {
     const targetDate = monthGrid.value[targetDateIndex.value].dateStr
-    const task = dragStore.draggingTask
     
-    // 更新任务日期（保留原时间）
-    taskStore.updateTask({
-      id: task.id,
-      startDate: targetDate,
-      endDate: targetDate,
+    // 更新日程日期（保留原时间）
+    taskStore.updateSchedule({
+      id: dragStore.draggingScheduleId,
+      date: targetDate,
     })
   }
   
@@ -182,22 +183,22 @@ onUnmounted(() => {
         <!-- 任务列表 -->
         <div class="space-y-0.5">
           <div
-            v-for="task in getTasksForDate(day.dateStr).slice(0, 3)"
-            :key="task.id"
-            @click="handleTaskClick(task, $event)"
-            @pointerdown="handleTaskDragStart(task, $event)"
+            v-for="item in getTasksForDate(day.dateStr).slice(0, 3)"
+            :key="item.schedule.id"
+            @click="handleTaskClick(item, $event)"
+            @pointerdown="handleTaskDragStart(item, $event)"
             :class="[
               'text-xs px-1.5 py-0.5 rounded truncate cursor-pointer select-none',
-              getTaskColorStyle(task).bg,
-              getTaskColorStyle(task).text,
+              getTaskColorStyle(item.task).bg,
+              getTaskColorStyle(item.task).text,
               'hover:opacity-80 active:opacity-60'
             ]"
-            :style="getTaskColorStyle(task).customBg ? {
-              backgroundColor: getTaskColorStyle(task).customBg,
-              color: getTaskColorStyle(task).customText
+            :style="getTaskColorStyle(item.task).customBg ? {
+              backgroundColor: getTaskColorStyle(item.task).customBg,
+              color: getTaskColorStyle(item.task).customText
             } : undefined"
           >
-            {{ task.title }}
+            {{ item.task.title }}
           </div>
           <div
             v-if="getTasksForDate(day.dateStr).length > 3"

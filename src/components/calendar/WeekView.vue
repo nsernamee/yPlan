@@ -5,9 +5,10 @@ import { useViewStore } from '@/stores/view'
 import { useDragStore } from '@/stores/drag'
 import TaskSlider from '@/components/task/TaskSlider.vue'
 import DropIndicator from '@/components/common/DropIndicator.vue'
-import { HOUR_HEIGHT, HEADER_HEIGHT } from '@/utils/constants'
-import { pixelsToTime, calculateDuration, offsetTime } from '@/utils/time'
+import { HOUR_HEIGHT } from '@/utils/constants'
+import { calculateDuration, offsetTime } from '@/utils/time'
 import dayjs from 'dayjs'
+import type { TaskWithSchedule } from '@/types'
 
 const taskStore = useTaskStore()
 const viewStore = useViewStore()
@@ -37,16 +38,20 @@ const weekDays = computed(() => {
 // 目标日期高亮
 const targetDateIndex = ref<number | null>(null)
 
-// 计算拖拽任务的持续时间
+// 计算拖拽日程的持续时间
 const draggingTaskDuration = computed(() => {
-  if (!dragStore.draggingTask) return 0
-  return calculateDuration(dragStore.draggingTask.startTime, dragStore.draggingTask.endTime)
+  if (!dragStore.draggingScheduleId) return 0
+  
+  const schedule = taskStore.schedules.find(s => s.id === dragStore.draggingScheduleId)
+  if (!schedule) return 0
+  
+  return calculateDuration(schedule.startTime, schedule.endTime)
 })
 
 // 计算任务样式
-function getTaskStyle(task: typeof taskStore.tasks[0]) {
-  const [startHour, startMin] = task.startTime.split(':').map(Number)
-  const [endHour, endMin] = task.endTime.split(':').map(Number)
+function getTaskStyle(item: TaskWithSchedule) {
+  const [startHour, startMin] = item.schedule.startTime.split(':').map(Number)
+  const [endHour, endMin] = item.schedule.endTime.split(':').map(Number)
   
   const top = startHour * HOUR_HEIGHT + (startMin / 60) * HOUR_HEIGHT
   const height = ((endHour - startHour) + (endMin - startMin) / 60) * HOUR_HEIGHT
@@ -57,36 +62,36 @@ function getTaskStyle(task: typeof taskStore.tasks[0]) {
   }
 }
 
-// 获取某天的任务
-function getTasksForDate(dateStr: string) {
-  return taskStore.getTasksByDateRange(dateStr, dateStr)
+// 获取某天的日程实例
+function getTasksForDate(dateStr: string): TaskWithSchedule[] {
+  return taskStore.getScheduleInstancesForDate(dateStr)
 }
 
 // 处理任务拖拽结束
-function handleTaskDragEnd(payload: { taskId: string; position: { x: number; y: number } }) {
-  if (!dragStore.draggingTask) return
+function handleTaskDragEnd(payload: { taskId: string; scheduleId: string; position: { x: number; y: number } }) {
+  if (!dragStore.draggingScheduleId) return
   
-  const task = dragStore.draggingTask
+  const schedule = taskStore.schedules.find(s => s.id === dragStore.draggingScheduleId)
+  if (!schedule) return
   
-  // 确定目标日期：如果有目标日期索引，使用它；否则保持原日期
+  // 确定目标日期：如果有目标日期索引，移动到新日期；否则保持原日期
   const targetDate = targetDateIndex.value !== null
     ? weekDays.value[targetDateIndex.value].dateStr
-    : task.startDate
+    : schedule.date
   
   // 直接使用拖拽过程中计算好的目标时间
-  const newStartTime = dragStore.targetTime || task.startTime
+  const newStartTime = dragStore.targetTime || schedule.startTime
   
   // 计算持续时间
-  const duration = calculateDuration(task.startTime, task.endTime)
+  const duration = calculateDuration(schedule.startTime, schedule.endTime)
   
   // 计算新的结束时间
   const newEndTime = offsetTime(newStartTime, duration)
   
-  // 更新任务
-  taskStore.updateTask({
-    id: payload.taskId,
-    startDate: targetDate,
-    endDate: targetDate,
+  // 更新日程
+  taskStore.updateSchedule({
+    id: dragStore.draggingScheduleId,
+    date: targetDate,
     startTime: newStartTime,
     endTime: newEndTime,
   })
@@ -113,13 +118,6 @@ function handleGlobalDragMove() {
       dragStore.setTargetDate(weekDays.value[index].dateStr)
     }
   })
-}
-
-// 计算持续时间
-function calculateDuration(startTime: string, endTime: string): number {
-  const [startH, startM] = startTime.split(':').map(Number)
-  const [endH, endM] = endTime.split(':').map(Number)
-  return (endH * 60 + endM) - (startH * 60 + startM)
 }
 
 // 监听拖拽事件
@@ -190,11 +188,11 @@ onMounted(() => {
           
           <!-- 任务滑块 -->
           <TaskSlider
-            v-for="task in getTasksForDate(day.dateStr)"
-            :key="task.id"
-            :task="task"
-            :allow-cross-date="true"
-            :style="getTaskStyle(task)"
+            v-for="item in getTasksForDate(day.dateStr)"
+            :key="item.schedule.id"
+            :task="item.task"
+            :schedule="item.schedule"
+            :style="getTaskStyle(item)"
             class="absolute left-1 right-1"
             @drag-end="handleTaskDragEnd"
           />
