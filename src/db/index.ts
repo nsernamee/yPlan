@@ -45,6 +45,8 @@ export async function getTasksByDateRange(startDate: string, endDate: string): P
   const allTasks = await db.getAll(TASKS_STORE)
   
   return allTasks.filter(task => {
+    // 过滤掉没有日期的任务（未计划任务）
+    if (!task.startDate || !task.endDate) return false
     return task.startDate <= endDate && task.endDate >= startDate
   })
 }

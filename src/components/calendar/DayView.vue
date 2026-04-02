@@ -24,6 +24,9 @@ const currentTasks = computed(() => {
 
 // 计算任务位置和高度
 function getTaskStyle(task: typeof currentTasks.value[0]) {
+  // 确保任务有时间（currentTasks 已过滤未计划任务）
+  if (!task.startTime || !task.endTime) return {}
+  
   const { top, height } = calculateTaskPosition(task.startTime, task.endTime)
   return {
     top: `${HEADER_HEIGHT + top}px`,
@@ -33,13 +36,13 @@ function getTaskStyle(task: typeof currentTasks.value[0]) {
 
 // 计算拖拽任务的持续时间
 const draggingTaskDuration = computed(() => {
-  if (!dragStore.draggingTask) return 0
+  if (!dragStore.draggingTask || !dragStore.draggingTask.startTime || !dragStore.draggingTask.endTime) return 0
   return calculateDuration(dragStore.draggingTask.startTime, dragStore.draggingTask.endTime)
 })
 
 // 处理任务拖拽结束
 function handleTaskDragEnd(payload: { taskId: string; position: { x: number; y: number } }) {
-  if (!dragStore.draggingTask) return
+  if (!dragStore.draggingTask || !dragStore.draggingTask.startTime || !dragStore.draggingTask.endTime) return
   
   const task = dragStore.draggingTask
   
@@ -72,6 +75,35 @@ function handleTimeAxisClick(event: MouseEvent) {
     dayjs(viewStore.currentDate).format('YYYY-MM-DD'),
     hour
   )
+}
+
+// 处理从任务列表拖拽的任务
+function handleDragOver(event: DragEvent) {
+  if (!dragStore.isDraggingFromList) return
+  
+  event.preventDefault()
+  event.dataTransfer!.dropEffect = 'move'
+}
+
+// 处理拖放任务
+function handleDrop(event: DragEvent) {
+  if (!dragStore.isDraggingFromList || !dragStore.draggingTask || !timeAxisRef.value) return
+  
+  event.preventDefault()
+  
+  const rect = timeAxisRef.value.getBoundingClientRect()
+  const y = event.clientY - rect.top + timeAxisRef.value.scrollTop - HEADER_HEIGHT
+  const hour = Math.max(0, Math.min(23, Math.floor(y / HOUR_HEIGHT)))
+  
+  const dateStr = dayjs(viewStore.currentDate).format('YYYY-MM-DD')
+  const startTime = `${hour.toString().padStart(2, '0')}:00`
+  const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`
+  
+  // 调度任务（设置日期和时间）
+  taskStore.scheduleTask(dragStore.draggingTask.id, dateStr, startTime, endTime)
+  
+  // 结束拖拽
+  dragStore.endDrag()
 }
 
 // 滚动到当前时间
@@ -116,6 +148,8 @@ onMounted(() => {
           class="flex-1 relative"
           :style="{ height: `${24 * HOUR_HEIGHT + HEADER_HEIGHT}px` }"
           @click="handleTimeAxisClick"
+          @dragover="handleDragOver"
+          @drop="handleDrop"
         >
           <!-- 顶部空白 -->
           <div :style="{ height: `${HEADER_HEIGHT}px` }" class="border-b border-gray-200" />

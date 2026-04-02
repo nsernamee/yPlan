@@ -20,6 +20,7 @@ export const useDragStore = defineStore('drag', () => {
   const dragMode = ref<DragMode>('grid')
   const dragType = ref<DragType | null>(null)
   const hasMoved = ref(false)
+  const isDraggingFromList = ref(false) // 是否从任务列表拖拽
 
   // 拖拽任务信息
   const draggingTask = ref<Task | null>(null)
@@ -46,10 +47,21 @@ export const useDragStore = defineStore('drag', () => {
     dragMode.value = params.mode
     dragType.value = params.type
     hasMoved.value = false
+    isDraggingFromList.value = false
     draggingTask.value = params.task
     originalPosition.value = params.startPosition
     currentPosition.value = params.startPosition
     offset.value = { x: 0, y: 0 }
+  }
+
+  // 从任务列表开始拖拽
+  function startDragFromList(task: Task) {
+    isDragging.value = true
+    dragMode.value = 'free' // 从列表拖出使用自由模式
+    dragType.value = 'move'
+    hasMoved.value = true
+    isDraggingFromList.value = true
+    draggingTask.value = task
   }
 
   // 更新拖拽位置
@@ -82,6 +94,7 @@ export const useDragStore = defineStore('drag', () => {
     dragMode.value = 'grid'
     dragType.value = null
     hasMoved.value = false
+    isDraggingFromList.value = false
     draggingTask.value = null
     originalPosition.value = { x: 0, y: 0 }
     currentPosition.value = { x: 0, y: 0 }
@@ -101,6 +114,7 @@ export const useDragStore = defineStore('drag', () => {
     dragMode,
     dragType,
     hasMoved,
+    isDraggingFromList,
     draggingTask,
     originalPosition,
     currentPosition,
@@ -112,6 +126,7 @@ export const useDragStore = defineStore('drag', () => {
     isGridDrag,
     // 方法
     startDrag,
+    startDragFromList,
     updatePosition,
     setTargetDate,
     setTargetTime,

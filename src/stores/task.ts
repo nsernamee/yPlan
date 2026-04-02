@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Task, CreateTaskParams, UpdateTaskParams, TaskColor } from '@/types'
+import { isPlannedTask } from '@/types'
 import * as db from '@/db'
 import dayjs from 'dayjs'
 
@@ -16,9 +17,21 @@ export const useTaskStore = defineStore('task', () => {
   const currentDayTasks = computed(() => {
     return tasks.value
       .filter(task => {
-        return task.startDate <= selectedDate.value && task.endDate >= selectedDate.value
+        // 只显示已计划的任务
+        if (!isPlannedTask(task)) return false
+        return task.startDate! <= selectedDate.value && task.endDate! >= selectedDate.value
       })
-      .sort((a, b) => a.startTime.localeCompare(b.startTime))
+      .sort((a, b) => a.startTime!.localeCompare(b.startTime!))
+  })
+
+  // 计算属性：已计划任务列表
+  const plannedTasks = computed(() => {
+    return tasks.value.filter(task => isPlannedTask(task))
+  })
+
+  // 计算属性：未计划任务列表
+  const unplannedTasks = computed(() => {
+    return tasks.value.filter(task => !isPlannedTask(task))
   })
 
   // 初始化：加载所有任务
@@ -99,10 +112,27 @@ export const useTaskStore = defineStore('task', () => {
     })
   }
 
+  // 将未计划任务加入日历（设置日期和默认时间）
+  async function scheduleTask(taskId: string, date: string, startTime: string = '01:00', endTime: string = '02:00') {
+    await updateTask({
+      id: taskId,
+      startDate: date,
+      endDate: date,
+      startTime,
+      endTime,
+    })
+  }
+
   // 打开创建面板
   function openCreatePanel(date?: string, hour?: number) {
     editingTask.value = null
     selectedDate.value = date || dayjs().format('YYYY-MM-DD')
+    isPanelOpen.value = true
+  }
+
+  // 打开创建面板（从任务列表创建，无时间）
+  function openCreatePanelForList() {
+    editingTask.value = null
     isPanelOpen.value = true
   }
 
@@ -126,7 +156,9 @@ export const useTaskStore = defineStore('task', () => {
   // 获取指定日期范围的任务
   function getTasksByDateRange(startDate: string, endDate: string) {
     return tasks.value.filter(task => {
-      return task.startDate <= endDate && task.endDate >= startDate
+      // 只返回已计划的任务
+      if (!isPlannedTask(task)) return false
+      return task.startDate! <= endDate && task.endDate! >= startDate
     })
   }
 
@@ -139,13 +171,17 @@ export const useTaskStore = defineStore('task', () => {
     selectedDate,
     // 计算属性
     currentDayTasks,
+    plannedTasks,
+    unplannedTasks,
     // 方法
     loadTasks,
     createTask,
     updateTask,
     deleteTask,
     moveTask,
+    scheduleTask,
     openCreatePanel,
+    openCreatePanelForList,
     openEditPanel,
     closePanel,
     setSelectedDate,

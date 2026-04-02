@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { useTaskStore } from '@/stores/task'
 import type { TaskColor } from '@/types'
+import { isPlannedTask } from '@/types'
 import ColorPicker from '@/components/common/ColorPicker.vue'
 import TimeInput from '@/components/common/TimeInput.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
@@ -13,9 +14,12 @@ const taskStore = useTaskStore()
 // 表单数据
 const title = ref('')
 const color = ref<TaskColor>('blue')
-const startTime = ref('09:00')
-const endTime = ref('10:00')
+const startTime = ref('')
+const endTime = ref('')
 const note = ref('')
+
+// 是否设置时间
+const hasTime = ref(true)
 
 // 确认对话框
 const showDeleteConfirm = ref(false)
@@ -48,9 +52,10 @@ watch(
     if (task) {
       title.value = task.title
       color.value = task.color
-      startTime.value = task.startTime
-      endTime.value = task.endTime
+      startTime.value = task.startTime || ''
+      endTime.value = task.endTime || ''
       note.value = task.note || ''
+      hasTime.value = isPlannedTask(task)
     } else {
       resetForm()
     }
@@ -65,6 +70,7 @@ function resetForm() {
   startTime.value = '09:00'
   endTime.value = '10:00'
   note.value = ''
+  hasTime.value = true
 }
 
 // 关闭面板
@@ -76,27 +82,59 @@ function closePanel() {
 function handleSave() {
   if (!title.value.trim()) return
   
-  const dateStr = dayjs(taskStore.selectedDate).format('YYYY-MM-DD')
+  // 判断是否设置时间
+  const shouldSetTime = hasTime.value && startTime.value && endTime.value
   
   if (isEditing.value && taskStore.editingTask) {
-    taskStore.updateTask({
-      id: taskStore.editingTask.id,
-      title: title.value,
-      color: color.value,
-      startTime: startTime.value,
-      endTime: endTime.value,
-      note: note.value,
-    })
+    // 编辑模式
+    if (shouldSetTime) {
+      // 有时间，更新时间和日期
+      const dateStr = taskStore.editingTask.startDate || dayjs(taskStore.selectedDate).format('YYYY-MM-DD')
+      taskStore.updateTask({
+        id: taskStore.editingTask.id,
+        title: title.value,
+        color: color.value,
+        startDate: dateStr,
+        endDate: dateStr,
+        startTime: startTime.value,
+        endTime: endTime.value,
+        note: note.value,
+      })
+    } else {
+      // 无时间，只更新基本信息
+      taskStore.updateTask({
+        id: taskStore.editingTask.id,
+        title: title.value,
+        color: color.value,
+        startDate: undefined,
+        endDate: undefined,
+        startTime: undefined,
+        endTime: undefined,
+        note: note.value,
+      })
+    }
   } else {
-    taskStore.createTask({
-      title: title.value,
-      color: color.value,
-      startDate: dateStr,
-      endDate: dateStr,
-      startTime: startTime.value,
-      endTime: endTime.value,
-      note: note.value,
-    })
+    // 创建模式
+    if (shouldSetTime) {
+      // 有时间，创建带时间的任务
+      const dateStr = dayjs(taskStore.selectedDate).format('YYYY-MM-DD')
+      taskStore.createTask({
+        title: title.value,
+        color: color.value,
+        startDate: dateStr,
+        endDate: dateStr,
+        startTime: startTime.value,
+        endTime: endTime.value,
+        note: note.value,
+      })
+    } else {
+      // 无时间，创建未计划任务
+      taskStore.createTask({
+        title: title.value,
+        color: color.value,
+        note: note.value,
+      })
+    }
   }
 }
 
@@ -147,10 +185,32 @@ function confirmDelete() {
         />
       </div>
 
+      <!-- 时间设置开关 -->
+      <div class="flex items-center gap-3">
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input
+            v-model="hasTime"
+            type="checkbox"
+            class="sr-only peer"
+          />
+          <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+        </label>
+        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+          设置时间
+        </span>
+      </div>
+
       <!-- 时间 -->
-      <div class="grid grid-cols-2 gap-4">
+      <div v-if="hasTime" class="grid grid-cols-2 gap-4">
         <TimeInput v-model="startTime" label="开始时间" />
         <TimeInput v-model="endTime" label="结束时间" />
+      </div>
+
+      <!-- 提示 -->
+      <div v-if="!hasTime" class="px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+        <p class="text-xs text-blue-700 dark:text-blue-300">
+          未设置时间的任务将显示为"未计划"，可稍后拖入日历安排时间
+        </p>
       </div>
 
       <!-- 颜色 -->

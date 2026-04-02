@@ -6,13 +6,18 @@ export interface Task {
   id: string
   title: string
   color: TaskColor
-  startDate: string // ISO 格式日期
-  endDate: string // ISO 格式日期
-  startTime: string // HH:mm 格式
-  endTime: string // HH:mm 格式
+  startDate?: string // ISO 格式日期（可选，未计划任务无日期）
+  endDate?: string // ISO 格式日期（可选，未计划任务无日期）
+  startTime?: string // HH:mm 格式（可选，未计划任务无时间）
+  endTime?: string // HH:mm 格式（可选，未计划任务无时间）
   note?: string
   createdAt: number
   updatedAt: number
+}
+
+// 判断任务是否已计划
+export function isPlannedTask(task: Task): boolean {
+  return !!(task.startDate && task.endDate && task.startTime && task.endTime)
 }
 
 // 视图类型
@@ -22,10 +27,10 @@ export type ViewType = 'day' | 'week' | 'month'
 export interface CreateTaskParams {
   title: string
   color: TaskColor
-  startDate: string
-  endDate: string
-  startTime: string
-  endTime: string
+  startDate?: string
+  endDate?: string
+  startTime?: string
+  endTime?: string
   note?: string
 }
 
