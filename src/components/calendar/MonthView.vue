@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useTaskStore } from '@/stores/task'
 import { useViewStore } from '@/stores/view'
+import { useDragStore } from '@/stores/drag'
 import { TASK_COLORS } from '@/types'
 import dayjs from 'dayjs'
 
 const taskStore = useTaskStore()
 const viewStore = useViewStore()
+const dragStore = useDragStore()
 
 // 月视图网格（6行 x 7列）
 const monthGrid = computed(() => {
@@ -32,6 +34,9 @@ const monthGrid = computed(() => {
 // 星期标题
 const weekDays = ['日', '一', '二', '三', '四', '五', '六']
 
+// 目标日期索引
+const targetDateIndex = ref<number | null>(null)
+
 // 获取某天的任务
 function getTasksForDate(dateStr: string) {
   return taskStore.getTasksByDateRange(dateStr, dateStr)
@@ -48,6 +53,70 @@ function handleTaskClick(task: typeof taskStore.tasks[0], event: Event) {
   event.stopPropagation()
   taskStore.openEditPanel(task)
 }
+
+// 任务拖拽开始
+function handleTaskDragStart(task: typeof taskStore.tasks[0], event: PointerEvent) {
+  event.stopPropagation()
+  
+  // 初始化拖拽
+  dragStore.startDrag({
+    task,
+    type: 'move',
+    mode: 'free',
+    startPosition: { x: event.clientX, y: event.clientY },
+  })
+  
+  // 添加全局监听
+  document.addEventListener('pointermove', handleGlobalDragMove)
+  document.addEventListener('pointerup', handleGlobalDragEnd)
+}
+
+// 全局拖拽移动
+function handleGlobalDragMove(e: PointerEvent) {
+  if (!dragStore.isDragging) return
+  
+  dragStore.updatePosition({ x: e.clientX, y: e.clientY })
+  
+  // 检测目标日期单元格
+  const cells = document.querySelectorAll('.month-cell')
+  cells.forEach((cell, index) => {
+    const rect = cell.getBoundingClientRect()
+    if (e.clientX >= rect.left && e.clientX <= rect.right &&
+        e.clientY >= rect.top && e.clientY <= rect.bottom) {
+      targetDateIndex.value = index
+      dragStore.setTargetDate(monthGrid.value[index].dateStr)
+    }
+  })
+}
+
+// 全局拖拽结束
+function handleGlobalDragEnd() {
+  // 如果有目标日期，移动任务
+  if (targetDateIndex.value !== null && dragStore.draggingTask) {
+    const targetDate = monthGrid.value[targetDateIndex.value].dateStr
+    const task = dragStore.draggingTask
+    
+    // 更新任务日期（保留原时间）
+    taskStore.updateTask({
+      id: task.id,
+      startDate: targetDate,
+      endDate: targetDate,
+    })
+  }
+  
+  // 清理
+  dragStore.endDrag()
+  targetDateIndex.value = null
+  
+  document.removeEventListener('pointermove', handleGlobalDragMove)
+  document.removeEventListener('pointerup', handleGlobalDragEnd)
+}
+
+// 清理
+onUnmounted(() => {
+  document.removeEventListener('pointermove', handleGlobalDragMove)
+  document.removeEventListener('pointerup', handleGlobalDragEnd)
+})
 </script>
 
 <template>
@@ -66,12 +135,13 @@ function handleTaskClick(task: typeof taskStore.tasks[0], event: Event) {
     <!-- 日期网格 -->
     <div class="flex-1 grid grid-cols-7 auto-rows-fr overflow-y-auto">
       <div
-        v-for="day in monthGrid"
+        v-for="(day, index) in monthGrid"
         :key="day.dateStr"
         @click="handleDateClick(day.dateStr)"
         :class="[
-          'border-b border-r border-gray-200 p-1 cursor-pointer hover:bg-gray-50 transition-colors',
-          { 'bg-gray-50/50': !day.isCurrentMonth }
+          'border-b border-r border-gray-200 p-1 cursor-pointer hover:bg-gray-50 transition-colors month-cell',
+          { 'bg-gray-50/50': !day.isCurrentMonth },
+          { 'drop-target-highlight': targetDateIndex === index }
         ]"
       >
         <!-- 日期数字 -->
@@ -90,10 +160,12 @@ function handleTaskClick(task: typeof taskStore.tasks[0], event: Event) {
             v-for="task in getTasksForDate(day.dateStr).slice(0, 3)"
             :key="task.id"
             @click="handleTaskClick(task, $event)"
+            @pointerdown="handleTaskDragStart(task, $event)"
             :class="[
-              'text-xs px-1.5 py-0.5 rounded truncate cursor-pointer',
+              'text-xs px-1.5 py-0.5 rounded truncate cursor-pointer select-none',
               TASK_COLORS[task.color].bg,
-              TASK_COLORS[task.color].text
+              TASK_COLORS[task.color].text,
+              'hover:opacity-80 active:opacity-60'
             ]"
           >
             {{ task.title }}

@@ -1,0 +1,177 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+import { useDragStore } from '@/stores/drag'
+import { TASK_COLORS } from '@/utils/constants'
+
+const dragStore = useDragStore()
+
+// 是否显示预览
+const showPreview = computed(() => {
+  const result = dragStore.isDragging && dragStore.isFreeDrag && dragStore.draggingTask
+  console.log('DragPreview showPreview', {
+    isDragging: dragStore.isDragging,
+    isFreeDrag: dragStore.isFreeDrag,
+    dragMode: dragStore.dragMode,
+    hasDraggingTask: !!dragStore.draggingTask,
+    result
+  })
+  return result
+})
+
+// 预览位置
+const previewStyle = computed(() => {
+  if (!showPreview.value) return {}
+  
+  // 向下偏移16px，露出虚线提示
+  const DRAG_OFFSET_Y = 16
+  
+  return {
+    left: `${dragStore.currentPosition.x}px`,
+    top: `${dragStore.currentPosition.y + DRAG_OFFSET_Y}px`,
+    transform: 'translate(-50%, -50%)',
+  }
+})
+
+// 任务颜色样式
+const colorStyle = computed(() => {
+  if (!dragStore.draggingTask) return {}
+  return TASK_COLORS[dragStore.draggingTask.color]
+})
+
+// 任务信息
+const taskTitle = computed(() => dragStore.draggingTask?.title || '')
+const taskTime = computed(() => {
+  if (!dragStore.draggingTask) return ''
+  return `${dragStore.draggingTask.startTime} - ${dragStore.draggingTask.endTime}`
+})
+</script>
+
+<template>
+  <Transition name="drag-preview">
+    <div
+      v-if="showPreview"
+      :style="previewStyle"
+      :class="[
+        'fixed z-[9999] pointer-events-none',
+        'w-[180px] h-[60px]',
+        'rounded-2xl overflow-hidden',
+        'drag-preview-card',
+        'animate-drag-bounce'
+      ]"
+    >
+      <!-- 磨砂玻璃背景 -->
+      <div
+        :class="[
+          'absolute inset-0 backdrop-blur-xl',
+          colorStyle.bg,
+          'opacity-95'
+        ]"
+      />
+      
+      <!-- 边框 -->
+      <div
+        :class="[
+          'absolute inset-0 border-l-4 rounded-2xl',
+          colorStyle.border
+        ]"
+      />
+      
+      <!-- 内容 -->
+      <div class="relative h-full flex flex-col justify-center px-3 py-2">
+        <div class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+          {{ taskTitle }}
+        </div>
+        <div class="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
+          {{ taskTime }}
+        </div>
+      </div>
+      
+      <!-- 微光效果 -->
+      <div class="absolute inset-0 shimmer-effect opacity-30" />
+    </div>
+  </Transition>
+</template>
+
+<style scoped>
+.drag-preview-card {
+  box-shadow: 
+    0 12px 32px rgba(0, 82, 217, 0.35),
+    0 4px 12px rgba(0, 0, 0, 0.1);
+  will-change: transform, left, top;
+}
+
+/* 进入动画 */
+.drag-preview-enter-active {
+  animation: dragPreviewEnter 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 离开动画 */
+.drag-preview-leave-active {
+  animation: dragPreviewLeave 0.2s ease-out;
+}
+
+@keyframes dragPreviewEnter {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+}
+
+@keyframes dragPreviewLeave {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+}
+
+/* 弹性动画 */
+.animate-drag-bounce {
+  animation: dragBounce 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes dragBounce {
+  0% {
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+  30% {
+    transform: translate(-50%, -50%) scale(0.98);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.02);
+  }
+  70% {
+    transform: translate(-50%, -50%) scale(0.99);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* 微光效果 */
+.shimmer-effect {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    transparent 100%
+  );
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+</style>

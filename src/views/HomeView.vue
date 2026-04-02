@@ -17,16 +17,13 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="h-full flex">
+  <div class="h-full">
     <!-- 主内容区 -->
-    <div class="flex-1 overflow-hidden">
+    <div class="h-full overflow-hidden">
       <!-- 根据视图类型显示不同组件 -->
       <DayView v-if="viewStore.viewType === 'day'" />
       <WeekView v-else-if="viewStore.viewType === 'week'" />
       <MonthView v-else />
     </div>
-    
-    <!-- 任务编辑面板 -->
-    <TaskPanel v-if="taskStore.isPanelOpen" />
   </div>
 </template>

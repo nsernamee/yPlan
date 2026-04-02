@@ -349,3 +349,76 @@
     background-color: #6b7280;
   }
 }
+
+/* ==================== 拖拽效果 ==================== */
+
+/* 目标区域高亮 */
+@layer components {
+  .drop-target-highlight {
+    @apply relative;
+    background: rgba(0, 82, 217, 0.08);
+    animation: dropTargetPulse 1s infinite;
+  }
+
+  .drop-target-highlight::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 2px dashed #0052D9;
+    border-radius: 8px;
+    pointer-events: none;
+    animation: dropTargetBorder 1s infinite;
+  }
+}
+
+@keyframes dropTargetPulse {
+  0%, 100% {
+    background-color: rgba(0, 82, 217, 0.05);
+  }
+  50% {
+    background-color: rgba(0, 82, 217, 0.12);
+  }
+}
+
+@keyframes dropTargetBorder {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* 拖拽时的任务透明度 */
+.task-dragging-ghost {
+  opacity: 0.3;
+}
+
+/* 缩放动画 */
+@keyframes scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 拖拽预览层样式（如果需要额外样式） */
+@layer components {
+  .drag-preview-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 9999;
+  }
+}

@@ -4,6 +4,7 @@ import { useTaskStore } from '@/stores/task'
 import type { TaskColor } from '@/types'
 import ColorPicker from '@/components/common/ColorPicker.vue'
 import TimeInput from '@/components/common/TimeInput.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { X, Trash2 } from 'lucide-vue-next'
 import dayjs from 'dayjs'
 
@@ -16,16 +17,34 @@ const startTime = ref('09:00')
 const endTime = ref('10:00')
 const note = ref('')
 
+// 确认对话框
+const showDeleteConfirm = ref(false)
+
 // 是否编辑模式
-const isEditing = computed(() => !!taskStore.editingTask)
+const isEditing = computed(() => {
+  const result = !!taskStore.editingTask
+  console.log('TaskPanel isEditing computed', {
+    editingTask: taskStore.editingTask,
+    result
+  })
+  return result
+})
 
 // 面板标题
-const panelTitle = computed(() => isEditing.value ? '编辑任务' : '新建任务')
+const panelTitle = computed(() => {
+  const title = isEditing.value ? '编辑任务' : '新建任务'
+  console.log('TaskPanel panelTitle computed', {
+    isEditing: isEditing.value,
+    title
+  })
+  return title
+})
 
 // 监听编辑任务变化
 watch(
   () => taskStore.editingTask,
   (task) => {
+    console.log('TaskPanel watch editingTask', { task })
     if (task) {
       title.value = task.title
       color.value = task.color
@@ -83,21 +102,27 @@ function handleSave() {
 
 // 删除任务
 function handleDelete() {
-  if (taskStore.editingTask && confirm('确定要删除这个任务吗？')) {
+  showDeleteConfirm.value = true
+}
+
+// 确认删除
+function confirmDelete() {
+  if (taskStore.editingTask) {
     taskStore.deleteTask(taskStore.editingTask.id)
   }
+  showDeleteConfirm.value = false
 }
 </script>
 
 <template>
   <!-- 遮罩层（移动端） -->
   <div
-    class="fixed inset-0 bg-black/50 z-40 md:hidden panel-mask-enter"
+    class="fixed inset-0 bg-black/50 z-[60] md:hidden panel-mask-enter"
     @click="closePanel"
   />
 
   <!-- 面板 - 磨砂玻璃效果 -->
-  <div class="fixed md:relative right-0 top-0 bottom-0 w-full md:w-96 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl md:border-l md:border-gray-200/50 dark:md:border-gray-700/50 z-50 flex flex-col panel-enter">
+  <div class="fixed right-0 top-0 bottom-0 w-full md:w-96 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl md:border-l md:border-gray-200/50 dark:md:border-gray-700/50 z-[70] flex flex-col panel-enter shadow-2xl">
     <!-- 头部 -->
     <div class="flex items-center justify-between p-4 border-b border-gray-200/50 dark:border-gray-700/50">
       <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ panelTitle }}</h2>
@@ -169,4 +194,15 @@ function handleDelete() {
       </button>
     </div>
   </div>
+
+  <!-- 删除确认对话框 -->
+  <ConfirmDialog
+    v-model="showDeleteConfirm"
+    title="删除任务"
+    message="确定要删除这个任务吗？此操作无法撤销。"
+    confirm-text="删除"
+    cancel-text="取消"
+    :danger="true"
+    @confirm="confirmDelete"
+  />
 </template>

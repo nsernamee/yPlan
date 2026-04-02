@@ -1,12 +1,17 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useTaskStore } from '@/stores/task'
 import { useViewStore } from '@/stores/view'
+import { useDragStore } from '@/stores/drag'
 import TaskSlider from '@/components/task/TaskSlider.vue'
+import DropIndicator from '@/components/common/DropIndicator.vue'
+import { HOUR_HEIGHT, HEADER_HEIGHT } from '@/utils/constants'
+import { pixelsToTime, calculateDuration, offsetTime } from '@/utils/time'
 import dayjs from 'dayjs'
 
 const taskStore = useTaskStore()
 const viewStore = useViewStore()
+const dragStore = useDragStore()
 
 // 时间刻度
 const timeSlots = Array.from({ length: 24 }, (_, i) => ({
@@ -29,9 +34,14 @@ const weekDays = computed(() => {
   })
 })
 
-// 每列宽度
-const HOUR_HEIGHT = 60
-const HEADER_HEIGHT = 60
+// 目标日期高亮
+const targetDateIndex = ref<number | null>(null)
+
+// 计算拖拽任务的持续时间
+const draggingTaskDuration = computed(() => {
+  if (!dragStore.draggingTask) return 0
+  return calculateDuration(dragStore.draggingTask.startTime, dragStore.draggingTask.endTime)
+})
 
 // 计算任务样式
 function getTaskStyle(task: typeof taskStore.tasks[0]) {
@@ -51,6 +61,76 @@ function getTaskStyle(task: typeof taskStore.tasks[0]) {
 function getTasksForDate(dateStr: string) {
   return taskStore.getTasksByDateRange(dateStr, dateStr)
 }
+
+// 处理任务拖拽结束
+function handleTaskDragEnd(payload: { taskId: string; position: { x: number; y: number } }) {
+  if (!dragStore.draggingTask) return
+  
+  const task = dragStore.draggingTask
+  
+  // 确定目标日期：如果有目标日期索引，使用它；否则保持原日期
+  const targetDate = targetDateIndex.value !== null
+    ? weekDays.value[targetDateIndex.value].dateStr
+    : task.startDate
+  
+  // 直接使用拖拽过程中计算好的目标时间
+  const newStartTime = dragStore.targetTime || task.startTime
+  
+  // 计算持续时间
+  const duration = calculateDuration(task.startTime, task.endTime)
+  
+  // 计算新的结束时间
+  const newEndTime = offsetTime(newStartTime, duration)
+  
+  // 更新任务
+  taskStore.updateTask({
+    id: payload.taskId,
+    startDate: targetDate,
+    endDate: targetDate,
+    startTime: newStartTime,
+    endTime: newEndTime,
+  })
+  
+  // 清除高亮
+  targetDateIndex.value = null
+}
+
+// 监听拖拽位置，检测目标日期
+function handleGlobalDragMove() {
+  if (!dragStore.isDragging || !dragStore.isFreeDrag) {
+    targetDateIndex.value = null
+    return
+  }
+  
+  // 检测鼠标在哪一列
+  const columns = document.querySelectorAll('.day-column')
+  const mouseX = dragStore.currentPosition.x
+  
+  columns.forEach((col, index) => {
+    const rect = col.getBoundingClientRect()
+    if (mouseX >= rect.left && mouseX <= rect.right) {
+      targetDateIndex.value = index
+      dragStore.setTargetDate(weekDays.value[index].dateStr)
+    }
+  })
+}
+
+// 计算持续时间
+function calculateDuration(startTime: string, endTime: string): number {
+  const [startH, startM] = startTime.split(':').map(Number)
+  const [endH, endM] = endTime.split(':').map(Number)
+  return (endH * 60 + endM) - (startH * 60 + startM)
+}
+
+// 监听拖拽事件
+onMounted(() => {
+  // 定期检查拖拽位置
+  const interval = setInterval(handleGlobalDragMove, 50)
+  
+  onUnmounted(() => {
+    clearInterval(interval)
+  })
+})
 </script>
 
 <template>
@@ -92,9 +172,12 @@ function getTasksForDate(dateStr: string) {
         
         <!-- 每天的任务列 -->
         <div
-          v-for="day in weekDays"
+          v-for="(day, index) in weekDays"
           :key="day.dateStr"
-          class="flex-1 min-w-[80px] relative border-r border-gray-200 last:border-r-0"
+          :class="[
+            'flex-1 min-w-[80px] relative border-r border-gray-200 last:border-r-0 day-column',
+            targetDateIndex === index && 'drop-target-highlight'
+          ]"
           :style="{ height: `${24 * HOUR_HEIGHT}px` }"
         >
           <!-- 小时分隔线 -->
@@ -110,8 +193,17 @@ function getTasksForDate(dateStr: string) {
             v-for="task in getTasksForDate(day.dateStr)"
             :key="task.id"
             :task="task"
+            :allow-cross-date="true"
             :style="getTaskStyle(task)"
             class="absolute left-1 right-1"
+            @drag-end="handleTaskDragEnd"
+          />
+          
+          <!-- 拖拽预览指示器（仅在目标日期列显示） -->
+          <DropIndicator
+            v-if="dragStore.isDragging && dragStore.targetTime && targetDateIndex === index"
+            :time="dragStore.targetTime"
+            :duration="draggingTaskDuration"
           />
         </div>
       </div>

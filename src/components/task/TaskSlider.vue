@@ -1,17 +1,30 @@
 <script setup lang="ts">
 import { ref, computed, onUnmounted } from 'vue'
 import { useTaskStore } from '@/stores/task'
+import { useDragStore } from '@/stores/drag'
 import type { Task } from '@/types'
-import { TASK_COLORS } from '@/utils/constants'
+import { TASK_COLORS, HOUR_HEIGHT, MIN_DURATION } from '@/utils/constants'
 import { useDrag } from '@/composables/useDrag'
 import { offsetToMinutes, offsetTime, calculateDuration } from '@/utils/time'
 
+// 辅助函数：计算时间距离午夜的分钟数
+function calculateMinutesFromMidnight(timeStr: string): number {
+  const [hour, min] = timeStr.split(':').map(Number)
+  return hour * 60 + min
+}
+
 const props = defineProps<{
   task: Task
+  allowCrossDate?: boolean // 是否允许跨日期拖动（周视图使用）
+}>()
+
+const emit = defineEmits<{
+  'drag-end': [payload: { taskId: string; position: { x: number; y: number } }]
 }>()
 
 const taskStore = useTaskStore()
-const { isDragging, dragType, hasMoved, startDrag } = useDrag()
+const dragStore = useDragStore()
+const { isDragging, dragType, hasMoved, dragMode, startDrag } = useDrag()
 
 // 颜色样式
 const colorStyle = computed(() => TASK_COLORS[props.task.color])
@@ -52,6 +65,9 @@ const previewTime = computed(() => {
 // 开始拖拽
 function handlePointerDown(event: PointerEvent, type: 'move' | 'resize-start' | 'resize-end') {
   if (!sliderRef.value) return
+
+  // 阻止事件冒泡，避免触发父容器的 handleTimeAxisClick
+  event.stopPropagation()
   
   const el = sliderRef.value
   
@@ -66,35 +82,145 @@ function handlePointerDown(event: PointerEvent, type: 'move' | 'resize-start' | 
   }
   
   startDrag(event, type, event.currentTarget as HTMLElement, {
-    onMove: (offsetY) => {
-      // 直接操作 DOM
-      if (type === 'move') {
-        el.style.transform = `translateY(${offsetY}px)`
-      } else if (type === 'resize-start') {
-        el.style.top = `${originalTop + offsetY}px`
-        el.style.height = `${Math.max(30, originalHeight - offsetY)}px`
-      } else if (type === 'resize-end') {
-        el.style.height = `${Math.max(30, originalHeight + offsetY)}px`
+    // 传递任务信息用于全局拖拽
+    task: props.task,
+    // 初始为网格模式
+    mode: 'grid',
+    // 自由拖拽阈值
+    freeDragThreshold: 10,
+    // 是否允许自动切换到自由拖拽模式（周视图允许）
+    allowAutoSwitchToFree: props.allowCrossDate || false,
+    
+    // 新版 2D 回调
+    onMove2D: (offset, position) => {
+      console.log('onMove2D', { 
+        dragMode: dragMode.value, 
+        type, 
+        offsetY: offset.y,
+        allowCrossDate: props.allowCrossDate 
+      })
+      
+      // 网格模式：仅垂直拖拽
+      if (dragMode.value === 'grid') {
+        if (type === 'move') {
+          // 整体拖动时向下偏移，露出虚线提示
+          const DRAG_OFFSET_Y = 16 // 向下偏移量
+          
+          // 只在日视图中应用边界限制（不允许跨日期）
+          if (!props.allowCrossDate) {
+            // 边界检查：限制拖动范围，防止任务跨天
+            const duration = calculateDuration(props.task.startTime, props.task.endTime)
+            const startMinutes = calculateMinutesFromMidnight(props.task.startTime)
+            const endMinutes = calculateMinutesFromMidnight(props.task.endTime)
+            
+            // 计算最大向上和向下移动距离（分钟）
+            const maxUpMinutes = -startMinutes // 最大向上移动距离（到 00:00）
+            const maxDownMinutes = (24 * 60) - endMinutes // 最大向下移动距离（到 23:59）
+            
+            // 将偏移量转换为分钟
+            const deltaMinutes = offsetToMinutes(offset.y)
+            
+            // 限制偏移量
+            const clampedDeltaMinutes = Math.max(maxUpMinutes, Math.min(deltaMinutes, maxDownMinutes))
+            const clampedOffsetY = clampedDeltaMinutes * (HOUR_HEIGHT / 60)
+            
+            // 应用向下偏移
+            el.style.transform = `translateY(${clampedOffsetY + DRAG_OFFSET_Y}px)`
+            
+            // 实时更新目标时间（注意：虚线位置不需要偏移）
+            const newStartTime = offsetTime(props.task.startTime, clampedDeltaMinutes)
+            dragStore.setTargetTime(newStartTime)
+          } else {
+            // 周视图中不限制边界，允许自由拖动
+            // 应用向下偏移
+            el.style.transform = `translateY(${offset.y + DRAG_OFFSET_Y}px)`
+            
+            // 实时更新目标时间
+            const deltaMinutes = offsetToMinutes(offset.y)
+            const newStartTime = offsetTime(props.task.startTime, deltaMinutes)
+            dragStore.setTargetTime(newStartTime)
+          }
+        } else if (type === 'resize-start') {
+          // 计算边界：向下拖会缩短时长，需要限制向下拖的最大距离
+          const currentDuration = calculateDuration(props.task.startTime, props.task.endTime)
+          const maxDeltaMinutes = Math.max(0, currentDuration - MIN_DURATION)
+          const maxDeltaPixels = maxDeltaMinutes * (HOUR_HEIGHT / 60)
+          
+          // 向下拖（offset.y > 0）时限制在 maxDeltaPixels 以内，向上拖不受限制
+          const clampedOffsetY = offset.y > 0 ? Math.min(offset.y, maxDeltaPixels) : offset.y
+          
+          el.style.top = `${originalTop + clampedOffsetY}px`
+          el.style.height = `${Math.max(MIN_DURATION * (HOUR_HEIGHT / 60), originalHeight - clampedOffsetY)}px`
+        } else if (type === 'resize-end') {
+          // 计算边界：向上拖会缩短时长，需要限制向上拖的最大距离
+          const currentDuration = calculateDuration(props.task.startTime, props.task.endTime)
+          const maxDeltaMinutes = Math.max(0, currentDuration - MIN_DURATION)
+          const maxDeltaPixels = maxDeltaMinutes * (HOUR_HEIGHT / 60)
+          
+          // 向上拖（offset.y < 0）时限制在 -maxDeltaPixels 以内，向下拖不受限制
+          const clampedOffsetY = offset.y < 0 ? Math.max(offset.y, -maxDeltaPixels) : offset.y
+          
+          el.style.height = `${Math.max(MIN_DURATION * (HOUR_HEIGHT / 60), originalHeight + clampedOffsetY)}px`
+        }
+      } else {
+        // 自由模式：隐藏原任务（全局预览会显示）
+        if (type === 'move') {
+          el.style.opacity = '0'
+          el.style.transform = ''
+          
+          // 实时更新目标时间
+          const deltaMinutes = offsetToMinutes(offset.y)
+          const newStartTime = offsetTime(props.task.startTime, deltaMinutes)
+          dragStore.setTargetTime(newStartTime)
+        }
       }
     },
-    onEnd: (totalOffsetY, moved) => {
-      // 清除拖拽样式
+    
+    onEnd2D: (offset, moved, position) => {
+      console.log('onEnd2D', { moved, offsetX: offset.x, offsetY: offset.y })
+      
+      // 恢复样式
       el.style.transform = ''
+      el.style.opacity = ''
       
       // 没有移动 = 点击操作
       if (!moved) {
+        console.log('Click detected, opening edit panel')
+        console.log('Task to edit:', props.task)
+        console.log('Before openEditPanel, editingTask:', taskStore.editingTask)
+        dragStore.setTargetTime(null)
         taskStore.openEditPanel(props.task)
+        console.log('After openEditPanel, editingTask:', taskStore.editingTask)
+        console.log('isPanelOpen:', taskStore.isPanelOpen)
         return
       }
       
-      const deltaMinutes = offsetToMinutes(totalOffsetY)
+      // 自由拖拽模式：由父组件处理日期变更
+      if (dragMode.value === 'free' && type === 'move') {
+        // 发送事件通知父组件（周/月视图）
+        // 注意：不要在这里清空 dragStore.targetTime，让父组件先读取
+        emit('drag-end', {
+          taskId: props.task.id,
+          position,
+        })
+        return
+      }
       
-      // 有移动且时间变化 = 更新任务
+      // 网格模式：仅处理时间变更
+      const deltaMinutes = offsetToMinutes(offset.y)
+      
       if (deltaMinutes !== 0) {
         if (type === 'move') {
           const duration = calculateDuration(props.task.startTime, props.task.endTime)
           const newStart = offsetTime(props.task.startTime, deltaMinutes)
           const newEnd = offsetTime(props.task.startTime, deltaMinutes + duration)
+          
+          // 边界检查：确保新时长为正数（防止跨天导致时间反转）
+          const newDuration = calculateDuration(newStart, newEnd)
+          if (newDuration <= 0) {
+            console.log('Task would cross day boundary, ignoring')
+            return
+          }
           
           taskStore.updateTask({
             id: props.task.id,
@@ -102,19 +228,34 @@ function handlePointerDown(event: PointerEvent, type: 'move' | 'resize-start' | 
             endTime: newEnd,
           })
         } else if (type === 'resize-start') {
-          const newStart = offsetTime(props.task.startTime, deltaMinutes)
+          // 边界验证：向下拖会增加开始时间，缩短时长
+          const currentDuration = calculateDuration(props.task.startTime, props.task.endTime)
+          const maxDeltaMinutes = Math.max(0, currentDuration - MIN_DURATION)
+          // 向下拖（deltaMinutes > 0）时限制，向上拖不受限制
+          const clampedDeltaMinutes = deltaMinutes > 0 ? Math.min(deltaMinutes, maxDeltaMinutes) : deltaMinutes
+          
+          const newStart = offsetTime(props.task.startTime, clampedDeltaMinutes)
           taskStore.updateTask({
             id: props.task.id,
             startTime: newStart,
           })
         } else if (type === 'resize-end') {
-          const newEnd = offsetTime(props.task.endTime, deltaMinutes)
+          // 边界验证：向上拖会减少结束时间，缩短时长
+          const currentDuration = calculateDuration(props.task.startTime, props.task.endTime)
+          const maxDeltaMinutes = Math.max(0, currentDuration - MIN_DURATION)
+          // 向上拖（deltaMinutes < 0）时限制，向下拖不受限制
+          const clampedDeltaMinutes = deltaMinutes < 0 ? Math.max(deltaMinutes, -maxDeltaMinutes) : deltaMinutes
+          
+          const newEnd = offsetTime(props.task.endTime, clampedDeltaMinutes)
           taskStore.updateTask({
             id: props.task.id,
             endTime: newEnd,
           })
         }
       }
+      
+      // 清除目标时间（在网格模式下，任务已更新完成）
+      dragStore.setTargetTime(null)
     },
   })
 }
@@ -144,6 +285,7 @@ onUnmounted(() => {
       }
     ]"
     @pointerdown="(e) => handlePointerDown(e, 'move')"
+    @click.stop
   >
     <!-- 内容区域 -->
     <div class="relative h-full flex flex-col p-2 pointer-events-none">

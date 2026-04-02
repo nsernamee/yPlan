@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useTaskStore } from '@/stores/task'
 import HeaderNav from '@/components/layout/HeaderNav.vue'
 import BottomNav from '@/components/layout/BottomNav.vue'
+import DragPreview from '@/components/common/DragPreview.vue'
+import TaskPanel from '@/components/task/TaskPanel.vue'
 
 const route = useRoute()
+const taskStore = useTaskStore()
 
 // 判断是否移动端
 const isMobile = ref(window.innerWidth < 768)
@@ -63,6 +67,12 @@ defineExpose({ isDark, toggleDark })
 
     <!-- 移动端底部导航 -->
     <BottomNav v-if="isMobile" />
+
+    <!-- 全局拖拽预览层 -->
+    <DragPreview />
+    
+    <!-- 任务编辑面板（全局渲染） -->
+    <TaskPanel v-if="taskStore.isPanelOpen" />
   </div>
 </template>
 
