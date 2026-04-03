@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useTaskStore } from '@/stores/task'
 import { useViewStore } from '@/stores/view'
 import { useDragStore } from '@/stores/drag'
@@ -16,6 +16,17 @@ const dragStore = useDragStore()
 
 // 时间轴容器
 const timeAxisRef = ref<HTMLElement | null>(null)
+
+// 当前时间（实时更新）
+const currentTime = ref(new Date())
+let timeUpdateInterval: number | null = null
+
+// 格式化当前时间 HH:mm
+const currentTimeStr = computed(() => {
+  const hours = currentTime.value.getHours().toString().padStart(2, '0')
+  const minutes = currentTime.value.getMinutes().toString().padStart(2, '0')
+  return `${hours}:${minutes}`
+})
 
 // 当前日期的日程实例（TaskWithSchedule[]）
 const currentTasks = computed(() => {
@@ -124,6 +135,17 @@ function scrollToCurrentTime() {
 
 onMounted(() => {
   scrollToCurrentTime()
+  
+  // 每分钟更新时间线位置
+  timeUpdateInterval = window.setInterval(() => {
+    currentTime.value = new Date()
+  }, 60000)
+})
+
+onUnmounted(() => {
+  if (timeUpdateInterval) {
+    clearInterval(timeUpdateInterval)
+  }
 })
 </script>
 
@@ -170,10 +192,12 @@ onMounted(() => {
           <!-- 当前时间线 -->
           <div
             v-if="dayjs(viewStore.currentDate).isSame(dayjs(), 'day')"
-            :style="{ top: `${HEADER_HEIGHT + new Date().getHours() * HOUR_HEIGHT + (new Date().getMinutes() / 60) * HOUR_HEIGHT}px` }"
+            :style="{ top: `${HEADER_HEIGHT + currentTime.getHours() * HOUR_HEIGHT + (currentTime.getMinutes() / 60) * HOUR_HEIGHT}px` }"
             class="absolute left-0 right-0 flex items-center z-10 pointer-events-none"
           >
             <div class="w-2 h-2 rounded-full bg-red-500" />
+            <div class="flex-1 h-0.5 bg-red-500" />
+            <span class="text-xs font-medium text-red-500 px-2">{{ currentTimeStr }}</span>
             <div class="flex-1 h-0.5 bg-red-500" />
           </div>
           
