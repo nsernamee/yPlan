@@ -193,7 +193,7 @@ onUnmounted(() => {
           <div
             v-if="dayjs(viewStore.currentDate).isSame(dayjs(), 'day')"
             :style="{ top: `${HEADER_HEIGHT + currentTime.getHours() * HOUR_HEIGHT + (currentTime.getMinutes() / 60) * HOUR_HEIGHT}px` }"
-            class="absolute left-0 right-0 flex items-center z-10 pointer-events-none"
+            class="absolute left-0 right-0 flex items-center z-10 pointer-events-none -translate-y-1/2"
           >
             <div class="w-2 h-2 rounded-full bg-red-500" />
             <div class="flex-1 h-0.5 bg-red-500" />

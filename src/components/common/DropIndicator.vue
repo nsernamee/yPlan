@@ -23,7 +23,7 @@ const yPosition = computed(() => {
     :style="{ top: `${yPosition}px` }"
   >
     <!-- 虚线横线 -->
-    <div class="border-t-2 border-dashed border-primary opacity-60" />
+    <div class="h-0.5 border-t-2 border-dashed border-primary opacity-60" />
     
     <!-- 时间提示气泡 -->
     <div
