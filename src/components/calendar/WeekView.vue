@@ -133,31 +133,31 @@ onMounted(() => {
 
 <template>
   <div class="h-full flex flex-col overflow-hidden">
-    <!-- 日期头部 -->
-    <div class="flex border-b border-gray-200 bg-white">
-      <div class="w-16 flex-shrink-0 border-r border-gray-200" />
-      <div
-        v-for="day in weekDays"
-        :key="day.dateStr"
-        class="flex-1 min-w-[80px] border-r border-gray-200 last:border-r-0 py-2 text-center"
-      >
-        <div class="text-xs text-gray-500">{{ day.dayName }}</div>
+    <!-- 时间轴区域（包含 sticky 表头） -->
+    <div class="flex-1 overflow-y-auto scrollbar-thin">
+      <!-- 日期头部（sticky） -->
+      <div class="grid border-b border-gray-200 bg-white sticky top-0 z-10" style="grid-template-columns: 64px repeat(7, 1fr);">
+        <div class="border-r border-gray-200" />
         <div
-          :class="[
-            'text-lg font-semibold mt-0.5',
-            day.isToday ? 'w-8 h-8 mx-auto rounded-full bg-primary text-white flex items-center justify-center' : 'text-gray-900'
-          ]"
+          v-for="day in weekDays"
+          :key="day.dateStr"
+          class="border-r border-gray-200 last:border-r-0 py-2 text-center"
         >
-          {{ day.dayNum }}
+          <div class="text-xs text-gray-500">{{ day.dayName }}</div>
+          <div
+            :class="[
+              'text-lg font-semibold mt-0.5',
+              day.isToday ? 'w-8 h-8 mx-auto rounded-full bg-primary text-white flex items-center justify-center' : 'text-gray-900'
+            ]"
+          >
+            {{ day.dayNum }}
+          </div>
         </div>
       </div>
-    </div>
-    
-    <!-- 时间轴区域 -->
-    <div class="flex-1 overflow-y-auto scrollbar-thin">
-      <div class="flex">
+
+      <div class="grid" style="grid-template-columns: 64px repeat(7, 1fr);">
         <!-- 时间刻度 -->
-        <div class="w-16 flex-shrink-0 border-r border-gray-200 bg-white">
+        <div class="border-r border-gray-200 bg-white">
           <div
             v-for="slot in timeSlots"
             :key="slot.hour"
@@ -167,13 +167,13 @@ onMounted(() => {
             {{ slot.label }}
           </div>
         </div>
-        
+
         <!-- 每天的任务列 -->
         <div
           v-for="(day, index) in weekDays"
           :key="day.dateStr"
           :class="[
-            'flex-1 min-w-[80px] relative border-r border-gray-200 last:border-r-0 day-column',
+            'relative border-r border-gray-200 last:border-r-0 day-column',
             targetDateIndex === index && 'drop-target-highlight'
           ]"
           :style="{ height: `${24 * HOUR_HEIGHT}px` }"
@@ -185,7 +185,7 @@ onMounted(() => {
             :style="{ top: `${slot.hour * HOUR_HEIGHT}px`, height: `${HOUR_HEIGHT}px` }"
             class="absolute left-0 right-0 border-b border-gray-100"
           />
-          
+
           <!-- 任务滑块 -->
           <TaskSlider
             v-for="item in getTasksForDate(day.dateStr)"
@@ -196,7 +196,7 @@ onMounted(() => {
             class="absolute left-1 right-1"
             @drag-end="handleTaskDragEnd"
           />
-          
+
           <!-- 拖拽预览指示器（仅在目标日期列显示） -->
           <DropIndicator
             v-if="dragStore.isDragging && dragStore.targetTime && targetDateIndex === index"
