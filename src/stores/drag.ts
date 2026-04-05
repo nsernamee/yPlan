@@ -64,7 +64,7 @@ export const useDragStore = defineStore('drag', () => {
   }
 
   // 从任务列表开始拖拽
-  function startDragFromList(task: Task) {
+  function startDragFromList(task: Task, position: DragPosition) {
     isDragging.value = true
     dragMode.value = 'free' // 从列表拖出使用自由模式
     dragType.value = 'move'
@@ -72,6 +72,10 @@ export const useDragStore = defineStore('drag', () => {
     isDraggingFromList.value = true
     draggingTask.value = task
     draggingScheduleId.value = null // 从列表拖出的任务没有日程
+    // 设置初始位置
+    originalPosition.value = position
+    currentPosition.value = position
+    offset.value = { x: 0, y: 0 }
   }
 
   // 更新拖拽位置

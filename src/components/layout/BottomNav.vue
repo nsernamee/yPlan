@@ -11,8 +11,12 @@ const tabs = [
   { key: 'list', label: '任务列表', icon: List },
 ] as const
 
-const switchView = (view: 'day' | 'week' | 'month') => {
-  viewStore.setViewType(view)
+function handleTabClick(key: string) {
+  if (key === 'list') {
+    viewStore.openTaskDrawer()
+  } else {
+    viewStore.setViewType(key as 'day' | 'week' | 'month')
+  }
 }
 </script>
 
@@ -22,7 +26,7 @@ const switchView = (view: 'day' | 'week' | 'month') => {
     <button
       v-for="tab in tabs"
       :key="tab.key"
-      @click="tab.key !== 'list' && switchView(tab.key)"
+      @click="handleTabClick(tab.key)"
       :class="[
         'flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all duration-200',
         viewStore.viewType === tab.key

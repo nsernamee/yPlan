@@ -301,7 +301,7 @@ onUnmounted(() => {
 
     <!-- 调整区域：顶部 -->
     <div
-      class="absolute top-0 left-0 right-0 h-3 cursor-ns-resize z-20 group rounded-t-xl"
+      class="absolute top-0 left-0 right-0 h-4 md:h-3 cursor-ns-resize z-20 group rounded-t-xl"
       @pointerdown.stop="(e) => handlePointerDown(e, 'resize-start')"
     >
       <div class="w-full h-full opacity-0 group-hover:opacity-100 bg-black/10 dark:bg-white/10 transition-opacity rounded-t-xl" />
@@ -309,7 +309,7 @@ onUnmounted(() => {
 
     <!-- 调整区域：底部 -->
     <div
-      class="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize z-20 group rounded-b-xl"
+      class="absolute bottom-0 left-0 right-0 h-4 md:h-3 cursor-ns-resize z-20 group rounded-b-xl"
       @pointerdown.stop="(e) => handlePointerDown(e, 'resize-end')"
     >
       <div class="w-full h-full opacity-0 group-hover:opacity-100 bg-black/10 dark:bg-white/10 transition-opacity rounded-b-xl" />

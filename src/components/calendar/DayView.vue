@@ -5,7 +5,7 @@ import { useViewStore } from '@/stores/view'
 import { useDragStore } from '@/stores/drag'
 import TaskSlider from '@/components/task/TaskSlider.vue'
 import DropIndicator from '@/components/common/DropIndicator.vue'
-import { HOUR_HEIGHT, HEADER_HEIGHT } from '@/utils/constants'
+import { HOUR_HEIGHT, HEADER_HEIGHT, LIST_DRAG_OFFSET } from '@/utils/constants'
 import { calculateTaskPosition, calculateDuration, offsetTime } from '@/utils/time'
 import dayjs from 'dayjs'
 import type { TaskWithSchedule } from '@/types'
@@ -95,30 +95,90 @@ function handleTimeAxisClick(event: MouseEvent) {
 
 // 处理从任务列表拖拽的任务
 function handleDragOver(event: DragEvent) {
-  if (!dragStore.isDraggingFromList) return
-  
   event.preventDefault()
-  event.dataTransfer!.dropEffect = 'move'
+  
+  if (dragStore.isDraggingFromList && timeAxisRef.value) {
+    event.dataTransfer!.dropEffect = 'move'
+    
+    // 计算目标时间
+    const rect = timeAxisRef.value.getBoundingClientRect()
+    const y = event.clientY - rect.top + timeAxisRef.value.scrollTop - HEADER_HEIGHT
+    const hour = Math.max(0, Math.min(23, Math.floor(y / HOUR_HEIGHT)))
+    const minutes = Math.floor((y % HOUR_HEIGHT) / (HOUR_HEIGHT / 60))
+    
+    dragStore.setTargetTime(`${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0').substring(0, 2)}`)
+  }
 }
 
-// 处理拖放任务（创建新日程）
+// 拖拽离开时清除目标时间
+function handleDragLeave(event: DragEvent) {
+  // 检查是否真正离开了任务区域
+  const relatedTarget = event.relatedTarget as HTMLElement
+  const currentTarget = event.currentTarget as HTMLElement
+  
+  // 如果进入的是当前目标的子元素，不清除
+  if (relatedTarget && currentTarget.contains(relatedTarget)) {
+    return
+  }
+  
+  // 真正离开时才清除
+  dragStore.setTargetTime(null)
+}
+
+// 根据开始时间计算1小时后的结束时间
+function calcEndTime(startTime: string): string {
+  const [h, m] = startTime.split(':').map(Number)
+  const endHour = h + 1
+  return `${endHour.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
+}
+
+// 从列表拖入时，修正目标时间使其与气泡显示时间一致（虚线上移了 LIST_DRAG_OFFSET 像素）
+function getEffectiveStartTime(targetTime: string): string {
+  if (!dragStore.isDraggingFromList) return targetTime
+  
+  const offsetMinutes = Math.round(LIST_DRAG_OFFSET / (HOUR_HEIGHT / 60))
+  const [hour, min] = targetTime.split(':').map(Number)
+  const totalMinutes = hour * 60 + min - offsetMinutes
+  const clampedMinutes = Math.max(0, Math.min(24 * 60 - 1, totalMinutes))
+  const h = Math.floor(clampedMinutes / 60)
+  const m = clampedMinutes % 60
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
+}
+
+// 处理自定义 drop 事件（移动端触摸）
+function handleCustomDrop(event: Event) {
+  const customEvent = event as CustomEvent<{ x: number; y: number; task: any }>
+  const { task } = customEvent.detail
+  
+  if (!task) return
+  
+  // 使用修正后的目标时间（从列表拖入时减去偏移量对应的时间）
+  const startTime = getEffectiveStartTime(dragStore.targetTime || '09:00')
+  const endTime = calcEndTime(startTime)
+  
+  const dateStr = dayjs(viewStore.currentDate).format('YYYY-MM-DD')
+  
+  // 为任务创建日程实例
+  taskStore.scheduleTaskOnDate(task.id, dateStr, startTime, endTime)
+}
+
+// 处理拖放任务（创建新日程）- 桌面端
 function handleDrop(event: DragEvent) {
   if (!dragStore.isDraggingFromList || !dragStore.draggingTask || !timeAxisRef.value) return
   
   event.preventDefault()
   
-  const rect = timeAxisRef.value.getBoundingClientRect()
-  const y = event.clientY - rect.top + timeAxisRef.value.scrollTop - HEADER_HEIGHT
-  const hour = Math.max(0, Math.min(23, Math.floor(y / HOUR_HEIGHT)))
+  // 使用修正后的目标时间（从列表拖入时减去偏移量对应的时间）
+  const startTime = getEffectiveStartTime(dragStore.targetTime || '09:00')
+  const endTime = calcEndTime(startTime)
   
   const dateStr = dayjs(viewStore.currentDate).format('YYYY-MM-DD')
-  const startTime = `${hour.toString().padStart(2, '0')}:00`
-  const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`
   
   // 为任务创建日程实例
   taskStore.scheduleTaskOnDate(dragStore.draggingTask.id, dateStr, startTime, endTime)
   
-  // 结束拖拽
+  // 清除目标时间并结束拖拽
+  dragStore.setTargetTime(null)
   dragStore.endDrag()
 }
 
@@ -164,7 +224,7 @@ onUnmounted(() => {
             v-for="hour in 24"
             :key="hour"
             :style="{ height: `${HOUR_HEIGHT}px` }"
-            class="flex items-start justify-end pr-2 pt-1 text-xs text-gray-500"
+            class="flex items-start justify-end pr-2 pt-1 text-sm md:text-xs text-gray-500"
           >
             {{ (hour - 1).toString().padStart(2, '0') }}:00
           </div>
@@ -172,11 +232,13 @@ onUnmounted(() => {
         
         <!-- 任务区域 -->
         <div
-          class="flex-1 relative"
+          class="flex-1 relative task-area"
           :style="{ height: `${24 * HOUR_HEIGHT + HEADER_HEIGHT}px` }"
           @click="handleTimeAxisClick"
           @dragover="handleDragOver"
+          @dragleave="handleDragLeave"
           @drop="handleDrop"
+          @custom-drop="handleCustomDrop"
         >
           <!-- 顶部空白 -->
           <div :style="{ height: `${HEADER_HEIGHT}px` }" class="border-b border-gray-200" />

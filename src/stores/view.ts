@@ -7,6 +7,7 @@ export const useViewStore = defineStore('view', () => {
   // 状态
   const viewType = ref<ViewType>('day')
   const currentDate = ref(new Date())
+  const taskDrawerOpen = ref(false)
 
   // 计算属性
   const currentDateString = computed(() => {
@@ -88,10 +89,21 @@ export const useViewStore = defineStore('view', () => {
     }
   }
 
+  // 打开任务列表抽屉
+  function openTaskDrawer() {
+    taskDrawerOpen.value = true
+  }
+
+  // 关闭任务列表抽屉
+  function closeTaskDrawer() {
+    taskDrawerOpen.value = false
+  }
+
   return {
     // 状态
     viewType,
     currentDate,
+    taskDrawerOpen,
     // 计算属性
     currentDateString,
     currentWeekRange,
@@ -102,5 +114,7 @@ export const useViewStore = defineStore('view', () => {
     goNext,
     goToday,
     setDate,
+    openTaskDrawer,
+    closeTaskDrawer,
   }
 })

@@ -11,6 +11,7 @@ const showPreview = computed(() => {
   console.log('DragPreview showPreview', {
     isDragging: dragStore.isDragging,
     isFreeDrag: dragStore.isFreeDrag,
+    isDraggingFromList: dragStore.isDraggingFromList,
     dragMode: dragStore.dragMode,
     hasDraggingTask: !!dragStore.draggingTask,
     result
@@ -66,18 +67,16 @@ const taskTime = computed(() => {
 </script>
 
 <template>
-  <Transition name="drag-preview">
-    <div
-      v-if="showPreview"
-      :style="previewStyle"
-      :class="[
-        'fixed z-[9999] pointer-events-none',
-        'w-[180px] h-[60px]',
-        'rounded-2xl overflow-hidden',
-        'drag-preview-card',
-        'animate-drag-bounce'
-      ]"
-    >
+  <div
+    v-if="showPreview"
+    :style="previewStyle"
+    :class="[
+      'fixed z-[9999] pointer-events-none',
+      'w-[180px] h-[60px]',
+      'rounded-2xl overflow-hidden',
+      'drag-preview-card'
+    ]"
+  >
       <!-- 磨砂玻璃背景 -->
       <div
         :class="[
@@ -114,7 +113,6 @@ const taskTime = computed(() => {
       <!-- 微光效果 -->
       <div class="absolute inset-0 shimmer-effect opacity-30" />
     </div>
-  </Transition>
 </template>
 
 <style scoped>
@@ -123,61 +121,6 @@ const taskTime = computed(() => {
     0 12px 32px rgba(0, 82, 217, 0.35),
     0 4px 12px rgba(0, 0, 0, 0.1);
   will-change: transform, left, top;
-}
-
-/* 进入动画 */
-.drag-preview-enter-active {
-  animation: dragPreviewEnter 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-/* 离开动画 */
-.drag-preview-leave-active {
-  animation: dragPreviewLeave 0.2s ease-out;
-}
-
-@keyframes dragPreviewEnter {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.8);
-  }
-  100% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1.05);
-  }
-}
-
-@keyframes dragPreviewLeave {
-  0% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1.05);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.95);
-  }
-}
-
-/* 弹性动画 */
-.animate-drag-bounce {
-  animation: dragBounce 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes dragBounce {
-  0% {
-    transform: translate(-50%, -50%) scale(1.05);
-  }
-  30% {
-    transform: translate(-50%, -50%) scale(0.98);
-  }
-  50% {
-    transform: translate(-50%, -50%) scale(1.02);
-  }
-  70% {
-    transform: translate(-50%, -50%) scale(0.99);
-  }
-  100% {
-    transform: translate(-50%, -50%) scale(1);
-  }
 }
 
 /* 微光效果 */

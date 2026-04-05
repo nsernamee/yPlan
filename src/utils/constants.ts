@@ -1,9 +1,10 @@
 // 时间轴配置
 export const HOUR_HEIGHT = 60 // 每小时高度（像素）
 export const HEADER_HEIGHT = 40 // 头部高度
-export const TIME_GRANULARITY = 15 // 时间粒度（分钟）
+export const TIME_GRANULARITY = 1 // 时间粒度（分钟），1 = 精确到每分钟
 export const MOVE_THRESHOLD = 5 // 移动阈值（像素）
 export const MIN_DURATION = 5 // 最小任务持续时间（分钟）
+export const LIST_DRAG_OFFSET = 40 // 从列表拖入时虚线上移像素数（使虚线显示在预览块上方）
 
 // 任务颜色
 export const TASK_COLORS = {

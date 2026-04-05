@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { HOUR_HEIGHT, HEADER_HEIGHT } from '@/utils/constants'
+import { HOUR_HEIGHT, HEADER_HEIGHT, LIST_DRAG_OFFSET } from '@/utils/constants'
+import { useDragStore } from '@/stores/drag'
+
+const dragStore = useDragStore()
 
 const props = defineProps<{
   time: string           // 目标时间 "HH:mm"
@@ -9,11 +12,33 @@ const props = defineProps<{
   includeHeader?: boolean // 是否包含头部高度偏移（日视图需要，周视图不需要）
 }>()
 
+// 从列表拖入时，预览块有 16px 下偏移 + 居中定位(高60px→上下各30px)
+// 需要向上偏移约 40px 使虚线显示在预览块上方（与日历上拖动效果一致）
+// 偏移对应的分钟数
+const offsetMinutes = Math.round(LIST_DRAG_OFFSET / (HOUR_HEIGHT / 60))
+
 // 计算指示器 Y 位置（相对于时间网格）
 const yPosition = computed(() => {
   const [hour, min] = props.time.split(':').map(Number)
-  const position = hour * HOUR_HEIGHT + (min / 60) * HOUR_HEIGHT
+  let position = hour * HOUR_HEIGHT + (min / 60) * HOUR_HEIGHT
+  // 从列表拖入时向上偏移
+  if (dragStore.isDraggingFromList) {
+    position -= LIST_DRAG_OFFSET
+  }
   return props.includeHeader ? HEADER_HEIGHT + position : position
+})
+
+// 气泡显示的时间（虚线实际位置对应的日历时间）
+const displayTime = computed(() => {
+  if (!dragStore.isDraggingFromList) return props.time
+  
+  const [hour, min] = props.time.split(':').map(Number)
+  const totalMinutes = hour * 60 + min - offsetMinutes
+  // 边界保护
+  const clampedMinutes = Math.max(0, Math.min(24 * 60 - 1, totalMinutes))
+  const h = Math.floor(clampedMinutes / 60)
+  const m = clampedMinutes % 60
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
 })
 </script>
 
@@ -29,7 +54,7 @@ const yPosition = computed(() => {
     <div
       class="absolute left-2 -top-6 px-2 py-1 rounded-lg text-xs font-semibold text-white bg-primary shadow-lg whitespace-nowrap animate-scale-in"
     >
-      {{ time }}
+      {{ displayTime }}
     </div>
   </div>
 </template>

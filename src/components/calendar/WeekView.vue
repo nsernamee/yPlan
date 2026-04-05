@@ -5,7 +5,7 @@ import { useViewStore } from '@/stores/view'
 import { useDragStore } from '@/stores/drag'
 import TaskSlider from '@/components/task/TaskSlider.vue'
 import DropIndicator from '@/components/common/DropIndicator.vue'
-import { HOUR_HEIGHT } from '@/utils/constants'
+import { HOUR_HEIGHT, LIST_DRAG_OFFSET } from '@/utils/constants'
 import { calculateDuration, offsetTime } from '@/utils/time'
 import dayjs from 'dayjs'
 import type { TaskWithSchedule } from '@/types'
@@ -100,6 +100,105 @@ function handleTaskDragEnd(payload: { taskId: string; scheduleId: string; positi
   targetDateIndex.value = null
 }
 
+// 处理从任务列表拖拽到某天
+function handleDragOver(event: DragEvent, dateIndex: number) {
+  event.preventDefault()
+  
+  if (dragStore.isDraggingFromList) {
+    event.dataTransfer!.dropEffect = 'move'
+    
+    // 计算目标时间
+    const column = document.querySelectorAll('.day-column')[dateIndex]
+    if (column) {
+      const rect = column.getBoundingClientRect()
+      const y = event.clientY - rect.top
+      const hour = Math.max(0, Math.min(23, Math.floor(y / HOUR_HEIGHT)))
+      const minutes = Math.floor((y % HOUR_HEIGHT) / (HOUR_HEIGHT / 60))
+      
+      dragStore.setTargetTime(`${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0').substring(0, 2)}`)
+      targetDateIndex.value = dateIndex
+      dragStore.setTargetDate(weekDays.value[dateIndex].dateStr)
+    }
+  }
+}
+
+// 拖拽离开时清除状态
+function handleDragLeave(event: DragEvent) {
+  // 检查是否真正离开了日期列
+  const relatedTarget = event.relatedTarget as HTMLElement
+  const currentTarget = event.currentTarget as HTMLElement
+  
+  // 如果进入的是当前目标的子元素，不清除
+  if (relatedTarget && currentTarget.contains(relatedTarget)) {
+    return
+  }
+  
+  // 真正离开时才清除
+  targetDateIndex.value = null
+  dragStore.setTargetTime(null)
+  dragStore.setTargetDate(null)
+}
+
+// 根据开始时间计算1小时后的结束时间
+function calcEndTime(startTime: string): string {
+  const [h, m] = startTime.split(':').map(Number)
+  const endHour = h + 1
+  return `${endHour.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
+}
+
+// 从列表拖入时，修正目标时间使其与气泡显示时间一致（虚线上移了 LIST_DRAG_OFFSET 像素）
+function getEffectiveStartTime(targetTime: string): string {
+  if (!dragStore.isDraggingFromList) return targetTime
+  
+  const offsetMinutes = Math.round(LIST_DRAG_OFFSET / (HOUR_HEIGHT / 60))
+  const [hour, min] = targetTime.split(':').map(Number)
+  const totalMinutes = hour * 60 + min - offsetMinutes
+  const clampedMinutes = Math.max(0, Math.min(24 * 60 - 1, totalMinutes))
+  const h = Math.floor(clampedMinutes / 60)
+  const m = clampedMinutes % 60
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
+}
+
+// 处理拖放任务（创建新日程）- 桌面端
+function handleDrop(event: DragEvent, dateIndex: number) {
+  if (!dragStore.isDraggingFromList || !dragStore.draggingTask) return
+  
+  event.preventDefault()
+  
+  // 使用修正后的目标时间和目标日期（从列表拖入时减去偏移量对应的时间）
+  const dateStr = dragStore.targetDate || weekDays.value[dateIndex].dateStr
+  const startTime = getEffectiveStartTime(dragStore.targetTime || '09:00')
+  const endTime = calcEndTime(startTime)
+  
+  // 为任务创建日程实例
+  taskStore.scheduleTaskOnDate(dragStore.draggingTask.id, dateStr, startTime, endTime)
+  
+  // 清除状态并结束拖拽
+  targetDateIndex.value = null
+  dragStore.setTargetTime(null)
+  dragStore.setTargetDate(null)
+  dragStore.endDrag()
+}
+
+// 处理自定义 drop 事件（移动端触摸）
+function handleCustomDrop(event: Event, dateIndex: number) {
+  const customEvent = event as CustomEvent<{ x: number; y: number; task: any }>
+  const { task } = customEvent.detail
+  
+  if (!task) return
+  
+  // 使用修正后的目标时间和目标日期（从列表拖入时减去偏移量对应的时间）
+  const dateStr = dragStore.targetDate || weekDays.value[dateIndex].dateStr
+  const startTime = getEffectiveStartTime(dragStore.targetTime || '09:00')
+  const endTime = calcEndTime(startTime)
+  
+  // 为任务创建日程实例
+  taskStore.scheduleTaskOnDate(task.id, dateStr, startTime, endTime)
+  
+  // 清除状态
+  targetDateIndex.value = null
+}
+
 // 监听拖拽位置，检测目标日期
 function handleGlobalDragMove() {
   if (!dragStore.isDragging || !dragStore.isFreeDrag) {
@@ -134,7 +233,7 @@ onMounted(() => {
 <template>
   <div class="h-full flex flex-col overflow-hidden">
     <!-- 时间轴区域（包含 sticky 表头） -->
-    <div class="flex-1 overflow-y-auto scrollbar-thin">
+    <div class="flex-1 overflow-y-auto scrollbar-thin" style="-webkit-overflow-scrolling: touch;">
       <!-- 日期头部（sticky） -->
       <div class="grid border-b border-gray-200 bg-white sticky top-0 z-10" style="grid-template-columns: 64px repeat(7, 1fr);">
         <div class="border-r border-gray-200" />
@@ -162,7 +261,7 @@ onMounted(() => {
             v-for="slot in timeSlots"
             :key="slot.hour"
             :style="{ height: `${HOUR_HEIGHT}px` }"
-            class="flex items-start justify-end pr-2 pt-1 text-xs text-gray-500"
+            class="flex items-start justify-end pr-2 pt-1 text-sm md:text-xs text-gray-500"
           >
             {{ slot.label }}
           </div>
@@ -177,6 +276,10 @@ onMounted(() => {
             targetDateIndex === index && 'drop-target-highlight'
           ]"
           :style="{ height: `${24 * HOUR_HEIGHT}px` }"
+          @dragover="handleDragOver($event, index)"
+          @dragleave="handleDragLeave"
+          @drop="handleDrop($event, index)"
+          @custom-drop="handleCustomDrop($event, index)"
         >
           <!-- 小时分隔线 -->
           <div

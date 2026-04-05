@@ -148,7 +148,7 @@ const scheduleCount = computed(() => {
   />
 
   <!-- 面板 - 磨砂玻璃效果 -->
-  <div class="fixed right-0 top-0 bottom-0 w-full md:w-96 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl md:border-l md:border-gray-200/50 dark:md:border-gray-700/50 z-[70] flex flex-col panel-enter shadow-2xl">
+  <div class="fixed right-0 top-0 bottom-0 w-[min(384px,calc(100vw-32px))] md:w-96 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl md:border-l md:border-gray-200/50 dark:md:border-gray-700/50 z-[70] flex flex-col panel-enter shadow-2xl">
     <!-- 头部 -->
     <div class="flex items-center justify-between p-4 border-b border-gray-200/50 dark:border-gray-700/50">
       <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ panelTitle }}</h2>

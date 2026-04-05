@@ -6,7 +6,7 @@ import DayView from '@/components/calendar/DayView.vue'
 import WeekView from '@/components/calendar/WeekView.vue'
 import MonthView from '@/components/calendar/MonthView.vue'
 import TaskList from '@/components/task/TaskList.vue'
-import TaskPanel from '@/components/task/TaskPanel.vue'
+import TaskListDrawer from '@/components/task/TaskListDrawer.vue'
 
 const taskStore = useTaskStore()
 const viewStore = useViewStore()
@@ -42,5 +42,12 @@ onMounted(() => {
     >
       <TaskList />
     </div>
+
+    <!-- 移动端任务列表抽屉 -->
+    <TaskListDrawer
+      v-if="isMobile"
+      :visible="viewStore.taskDrawerOpen"
+      @close="viewStore.closeTaskDrawer"
+    />
   </div>
 </template>
