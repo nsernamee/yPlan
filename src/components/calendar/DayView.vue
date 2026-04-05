@@ -5,8 +5,8 @@ import { useViewStore } from '@/stores/view'
 import { useDragStore } from '@/stores/drag'
 import TaskSlider from '@/components/task/TaskSlider.vue'
 import DropIndicator from '@/components/common/DropIndicator.vue'
-import { HOUR_HEIGHT, HEADER_HEIGHT, LIST_DRAG_OFFSET } from '@/utils/constants'
-import { calculateTaskPosition, calculateDuration, offsetTime } from '@/utils/time'
+import { HOUR_HEIGHT, HEADER_HEIGHT, LIST_DRAG_OFFSET, TIME_START_HOUR, TIME_END_HOUR, TIME_AXIS_HOURS } from '@/utils/constants'
+import { calculateTaskPosition, calculateDuration, offsetTime, clampTime } from '@/utils/time'
 import dayjs from 'dayjs'
 import type { TaskWithSchedule } from '@/types'
 
@@ -56,22 +56,25 @@ const draggingTaskDuration = computed(() => {
 })
 
 // 处理任务拖拽结束
-function handleTaskDragEnd(payload: { taskId: string; scheduleId: string; position: { x: number; y: number } }) {
+function handleTaskDragEnd(payload: { taskId: string; scheduleId: string; position: { x: number; y: number }; startTime?: string; endTime?: string }) {
   if (!dragStore.draggingScheduleId) return
-  
+
   const schedule = taskStore.schedules.find(s => s.id === dragStore.draggingScheduleId)
   if (!schedule) return
-  
-  // 直接使用拖拽过程中计算好的目标时间
-  const newStartTime = dragStore.targetTime || schedule.startTime
-  
-  // 计算持续时间
-  const duration = calculateDuration(schedule.startTime, schedule.endTime)
-  
-  // 计算新的结束时间
-  const newEndTime = offsetTime(newStartTime, duration)
-  
-  // 更新日程时间
+
+  // 优先级：payload 时间 > targetTime > 原值（统一处理，避免竞态）
+  const newStartTime = payload.startTime || dragStore.targetTime || schedule.startTime
+
+  let newEndTime: string
+  if (payload.endTime) {
+    newEndTime = payload.endTime
+  } else if (dragStore.targetTime) {
+    const duration = calculateDuration(schedule.startTime, schedule.endTime)
+    newEndTime = clampTime(offsetTime(newStartTime, duration))
+  } else {
+    newEndTime = schedule.endTime
+  }
+
   taskStore.updateSchedule({
     id: dragStore.draggingScheduleId,
     startTime: newStartTime,
@@ -85,7 +88,8 @@ function handleTimeAxisClick(event: MouseEvent) {
   
   const rect = timeAxisRef.value.getBoundingClientRect()
   const y = event.clientY - rect.top + timeAxisRef.value.scrollTop - HEADER_HEIGHT
-  const hour = Math.max(0, Math.floor(y / HOUR_HEIGHT))
+  const rawHour = Math.floor(y / HOUR_HEIGHT)
+  const hour = Math.min(TIME_END_HOUR, Math.max(TIME_START_HOUR, TIME_START_HOUR + rawHour))
   
   taskStore.openCreatePanel(
     dayjs(viewStore.currentDate).format('YYYY-MM-DD'),
@@ -103,7 +107,8 @@ function handleDragOver(event: DragEvent) {
     // 计算目标时间
     const rect = timeAxisRef.value.getBoundingClientRect()
     const y = event.clientY - rect.top + timeAxisRef.value.scrollTop - HEADER_HEIGHT
-    const hour = Math.max(0, Math.min(23, Math.floor(y / HOUR_HEIGHT)))
+    const rawHour = Math.floor(y / HOUR_HEIGHT)
+    const hour = Math.min(TIME_END_HOUR, Math.max(TIME_START_HOUR, TIME_START_HOUR + rawHour))
     const minutes = Math.floor((y % HOUR_HEIGHT) / (HOUR_HEIGHT / 60))
     
     dragStore.setTargetTime(`${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0').substring(0, 2)}`)
@@ -139,7 +144,9 @@ function getEffectiveStartTime(targetTime: string): string {
   const offsetMinutes = Math.round(LIST_DRAG_OFFSET / (HOUR_HEIGHT / 60))
   const [hour, min] = targetTime.split(':').map(Number)
   const totalMinutes = hour * 60 + min - offsetMinutes
-  const clampedMinutes = Math.max(0, Math.min(24 * 60 - 1, totalMinutes))
+  const minMin = TIME_START_HOUR * 60
+  const maxMin = TIME_END_HOUR * 60 + 59
+  const clampedMinutes = Math.max(minMin, Math.min(maxMin, totalMinutes))
   const h = Math.floor(clampedMinutes / 60)
   const m = clampedMinutes % 60
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
@@ -188,7 +195,9 @@ function scrollToCurrentTime() {
   
   const now = new Date()
   const hour = now.getHours()
-  const scrollTo = hour * HOUR_HEIGHT - 100
+  // 如果当前时间在时间轴范围内，滚动到对应位置；否则滚到最顶部（6:00）
+  const scrollHour = Math.max(TIME_START_HOUR, hour)
+  const scrollTo = (scrollHour - TIME_START_HOUR) * HOUR_HEIGHT - 100
   
   timeAxisRef.value.scrollTop = Math.max(0, scrollTo)
 }
@@ -218,22 +227,22 @@ onUnmounted(() => {
     >
       <div class="relative flex">
         <!-- 时间刻度 -->
-        <div class="w-16 flex-shrink-0 border-r border-gray-200">
+        <div class="w-10 md:w-16 flex-shrink-0 border-r border-gray-200">
           <div :style="{ height: `${HEADER_HEIGHT}px` }" class="border-b border-gray-200" />
           <div
-            v-for="hour in 24"
+            v-for="hour in TIME_AXIS_HOURS"
             :key="hour"
             :style="{ height: `${HOUR_HEIGHT}px` }"
-            class="flex items-start justify-end pr-2 pt-1 text-sm md:text-xs text-gray-500"
+            class="flex items-start justify-end pr-1 pt-1 text-xs text-gray-500"
           >
-            {{ (hour - 1).toString().padStart(2, '0') }}:00
+            {{ (hour - 1 + TIME_START_HOUR).toString().padStart(2, '0') }}:00
           </div>
         </div>
         
         <!-- 任务区域 -->
         <div
           class="flex-1 relative task-area"
-          :style="{ height: `${24 * HOUR_HEIGHT + HEADER_HEIGHT}px` }"
+          :style="{ height: `${TIME_AXIS_HOURS * HOUR_HEIGHT + HEADER_HEIGHT + 100}px` }"
           @click="handleTimeAxisClick"
           @dragover="handleDragOver"
           @dragleave="handleDragLeave"
@@ -245,7 +254,7 @@ onUnmounted(() => {
           
           <!-- 小时分隔线 -->
           <div
-            v-for="hour in 24"
+            v-for="hour in TIME_AXIS_HOURS"
             :key="hour"
             :style="{ top: `${HEADER_HEIGHT + (hour - 1) * HOUR_HEIGHT}px`, height: `${HOUR_HEIGHT}px` }"
             class="absolute left-0 right-0 border-b border-gray-100"
@@ -253,8 +262,8 @@ onUnmounted(() => {
           
           <!-- 当前时间线 -->
           <div
-            v-if="dayjs(viewStore.currentDate).isSame(dayjs(), 'day')"
-            :style="{ top: `${HEADER_HEIGHT + currentTime.getHours() * HOUR_HEIGHT + (currentTime.getMinutes() / 60) * HOUR_HEIGHT}px` }"
+            v-if="dayjs(viewStore.currentDate).isSame(dayjs(), 'day') && currentTime.getHours() >= TIME_START_HOUR"
+            :style="{ top: `${HEADER_HEIGHT + (currentTime.getHours() - TIME_START_HOUR) * HOUR_HEIGHT + (currentTime.getMinutes() / 60) * HOUR_HEIGHT}px` }"
             class="absolute left-0 right-0 flex items-center z-10 pointer-events-none -translate-y-1/2"
           >
             <div class="w-2 h-2 rounded-full bg-red-500" />

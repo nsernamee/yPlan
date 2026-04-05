@@ -126,9 +126,11 @@ function confirmDelete() {
   if (deleteType.value === 'schedule' && taskStore.editingSchedule) {
     // 删除日程实例（任务保留）
     taskStore.removeSchedule(taskStore.editingSchedule.id)
+    closePanel()  // 关闭编辑窗口
   } else if (deleteType.value === 'task' && taskStore.editingTask) {
     // 删除任务（级联删除所有日程）
     taskStore.deleteTask(taskStore.editingTask.id)
+    closePanel()  // 关闭编辑窗口
   }
   showDeleteConfirm.value = false
 }
@@ -138,6 +140,16 @@ const scheduleCount = computed(() => {
   if (!taskStore.editingTask) return 0
   return taskStore.getTaskSchedules(taskStore.editingTask.id).length
 })
+
+// 危险按钮颜色磨砂玻璃样式
+const deleteBtnStyle = computed(() => ({
+  removeSchedule: {
+    backgroundColor: 'rgba(237, 123, 47, 0.13)',
+  },
+  deleteTask: {
+    backgroundColor: 'rgba(227, 77, 89, 0.13)',
+  },
+}))
 </script>
 
 <template>
@@ -218,61 +230,62 @@ const scheduleCount = computed(() => {
     </div>
 
     <!-- 底部按钮 -->
-    <div class="p-4 border-t border-gray-200/50 dark:border-gray-700/50 flex gap-3">
-      <!-- 编辑日程时：显示两个删除按钮 -->
-      <template v-if="isEditingSchedule">
+    <div class="p-4 border-t border-gray-200/50 dark:border-gray-700/50 flex flex-col gap-3">
+      <!-- 第一行：危险操作 -->
+      <div class="flex items-center gap-3">
+        <!-- 编辑日程时：两个按钮均分一行 -->
+        <template v-if="isEditingSchedule">
+          <button
+            @click="handleDeleteSchedule"
+            :style="deleteBtnStyle.removeSchedule"
+            class="group relative flex-1 flex items-center justify-center gap-2 py-3 backdrop-blur-xl rounded-2xl text-orange-600 dark:text-orange-400 text-sm font-medium shadow-sm hover:shadow-md hover:bg-orange-500/10 active:scale-[0.97] transition-all duration-200"
+          >
+            <Trash2 class="w-4 h-4 transition-transform group-hover:scale-110" />
+            移除日程
+          </button>
+          <button
+            @click="handleDeleteTask"
+            :style="deleteBtnStyle.deleteTask"
+            class="group relative flex-1 flex items-center justify-center gap-2 py-3 backdrop-blur-xl rounded-2xl text-red-600 dark:text-red-400 text-sm font-medium shadow-sm hover:shadow-md hover:shadow-red-500/10 hover:bg-red-500/10 active:scale-[0.97] transition-all duration-200"
+          >
+            <Trash2 class="w-4 h-4 transition-transform group-hover:scale-110" />
+            删除任务
+          </button>
+        </template>
+        
+        <!-- 仅编辑任务时：独占整行 -->
         <button
-          @click="handleDeleteSchedule"
-          class="flex items-center gap-2 px-3 py-2.5 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-xl transition-colors btn-apple text-sm"
-        >
-          <Trash2 class="w-4 h-4" />
-          移除此日程
-        </button>
-        <div class="flex-1" />
-        <button
+          v-else-if="isEditing"
           @click="handleDeleteTask"
-          class="flex items-center gap-2 px-3 py-2.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors btn-apple text-sm"
+          :style="deleteBtnStyle.deleteTask"
+          class="group relative w-full flex items-center justify-center gap-2 py-3 backdrop-blur-xl rounded-2xl text-red-600 dark:text-red-400 text-sm font-medium shadow-sm hover:shadow-md hover:shadow-red-500/10 hover:bg-red-500/10 active:scale-[0.97] transition-all duration-200"
         >
-          <Trash2 class="w-4 h-4" />
-          删除任务
-        </button>
-      </template>
-      
-      <!-- 编辑任务时：只显示删除任务按钮 -->
-      <template v-else-if="isEditing">
-        <button
-          @click="handleDeleteTask"
-          class="flex items-center gap-2 px-4 py-2.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors btn-apple"
-        >
-          <Trash2 class="w-4 h-4" />
+          <Trash2 class="w-4 h-4 transition-transform group-hover:scale-110" />
           删除
         </button>
-        <div class="flex-1" />
-      </template>
-      
-      <!-- 新建时：无删除按钮 -->
-      <template v-else>
-        <div class="flex-1" />
-      </template>
-      
-      <button
-        @click="closePanel"
-        class="px-4 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors btn-apple-secondary"
-      >
-        取消
-      </button>
-      <button
-        @click="handleSave"
-        :disabled="!title.trim()"
-        class="px-5 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-light hover:shadow-lg hover:shadow-primary/25 transition-all duration-200 btn-apple disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        保存
-      </button>
+      </div>
+
+      <!-- 第二行：主操作（均分整行） -->
+      <div class="flex gap-3">
+        <button
+          @click="closePanel"
+          class="flex-1 py-3 bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl border border-gray-200/60 dark:border-gray-700/40 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-2xl shadow-sm hover:shadow-md hover:bg-white/90 dark:hover:bg-gray-800/90 hover:border-gray-300/70 dark:hover:border-gray-600/50 active:scale-[0.97] transition-all duration-200"
+        >
+          取消
+        </button>
+        <button
+          @click="handleSave"
+          :disabled="!title.trim()"
+          class="flex-1 py-3 bg-primary/90 backdrop-blur-xl text-white text-sm font-medium rounded-2xl shadow-md shadow-primary/20 hover:bg-primary hover:shadow-lg hover:shadow-primary/30 active:scale-[0.97] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-md disabled:active:scale-100"
+        >
+          保存
+        </button>
+      </div>
     </div>
   </div>
 
-  <!-- 删除确认对话框 -->
-  <ConfirmDialog
+    <!-- 删除确认对话框 -->
+    <ConfirmDialog
     v-model="showDeleteConfirm"
     :title="deleteType === 'schedule' ? '移除日程' : '删除任务'"
     :message="deleteType === 'schedule' 

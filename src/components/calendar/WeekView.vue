@@ -5,8 +5,8 @@ import { useViewStore } from '@/stores/view'
 import { useDragStore } from '@/stores/drag'
 import TaskSlider from '@/components/task/TaskSlider.vue'
 import DropIndicator from '@/components/common/DropIndicator.vue'
-import { HOUR_HEIGHT, LIST_DRAG_OFFSET } from '@/utils/constants'
-import { calculateDuration, offsetTime } from '@/utils/time'
+import { HOUR_HEIGHT, LIST_DRAG_OFFSET, TIME_START_HOUR, TIME_END_HOUR, TIME_AXIS_HOURS } from '@/utils/constants'
+import { calculateDuration, offsetTime, calculateTaskPosition, clampTime } from '@/utils/time'
 import dayjs from 'dayjs'
 import type { TaskWithSchedule } from '@/types'
 
@@ -15,9 +15,9 @@ const viewStore = useViewStore()
 const dragStore = useDragStore()
 
 // 时间刻度
-const timeSlots = Array.from({ length: 24 }, (_, i) => ({
-  hour: i,
-  label: `${i.toString().padStart(2, '0')}:00`,
+const timeSlots = Array.from({ length: TIME_AXIS_HOURS }, (_, i) => ({
+  hour: i + TIME_START_HOUR,
+  label: `${(i + TIME_START_HOUR).toString().padStart(2, '0')}:00`,
 }))
 
 // 周日期
@@ -50,15 +50,10 @@ const draggingTaskDuration = computed(() => {
 
 // 计算任务样式
 function getTaskStyle(item: TaskWithSchedule) {
-  const [startHour, startMin] = item.schedule.startTime.split(':').map(Number)
-  const [endHour, endMin] = item.schedule.endTime.split(':').map(Number)
-  
-  const top = startHour * HOUR_HEIGHT + (startMin / 60) * HOUR_HEIGHT
-  const height = ((endHour - startHour) + (endMin - startMin) / 60) * HOUR_HEIGHT
-  
+  const { top, height } = calculateTaskPosition(item.schedule.startTime, item.schedule.endTime)
   return {
     top: `${top}px`,
-    height: `${Math.max(height, 24)}px`,
+    height: `${height}px`,
   }
 }
 
@@ -68,7 +63,7 @@ function getTasksForDate(dateStr: string): TaskWithSchedule[] {
 }
 
 // 处理任务拖拽结束
-function handleTaskDragEnd(payload: { taskId: string; scheduleId: string; position: { x: number; y: number } }) {
+function handleTaskDragEnd(payload: { taskId: string; scheduleId: string; position: { x: number; y: number }; startTime?: string; endTime?: string }) {
   if (!dragStore.draggingScheduleId) return
   
   const schedule = taskStore.schedules.find(s => s.id === dragStore.draggingScheduleId)
@@ -79,16 +74,23 @@ function handleTaskDragEnd(payload: { taskId: string; scheduleId: string; positi
     ? weekDays.value[targetDateIndex.value].dateStr
     : schedule.date
   
-  // 直接使用拖拽过程中计算好的目标时间
-  const newStartTime = dragStore.targetTime || schedule.startTime
+  // 优先级：payload 中的时间数据 > dragStore.targetTime > schedule 原值
+  const newStartTime = payload.startTime || dragStore.targetTime || schedule.startTime
+  let newEndTime: string
   
-  // 计算持续时间
-  const duration = calculateDuration(schedule.startTime, schedule.endTime)
+  if (payload.endTime) {
+    // 子组件已计算好 endTime（free 模式），直接使用
+    newEndTime = payload.endTime
+  } else if (dragStore.targetTime) {
+    // 从列表拖入或 grid 模式，需要基于 startTime 计算
+    const duration = calculateDuration(schedule.startTime, schedule.endTime)
+    newEndTime = clampTime(offsetTime(newStartTime, duration))
+  } else {
+    // 无时间变更（不应走到这里，但做兜底）
+    newEndTime = schedule.endTime
+  }
   
-  // 计算新的结束时间
-  const newEndTime = offsetTime(newStartTime, duration)
-  
-  // 更新日程
+  // 统一一次性保存（避免多次 async 竞态）
   taskStore.updateSchedule({
     id: dragStore.draggingScheduleId,
     date: targetDate,
@@ -103,18 +105,19 @@ function handleTaskDragEnd(payload: { taskId: string; scheduleId: string; positi
 // 处理从任务列表拖拽到某天
 function handleDragOver(event: DragEvent, dateIndex: number) {
   event.preventDefault()
-  
+
   if (dragStore.isDraggingFromList) {
     event.dataTransfer!.dropEffect = 'move'
-    
+
     // 计算目标时间
     const column = document.querySelectorAll('.day-column')[dateIndex]
     if (column) {
       const rect = column.getBoundingClientRect()
       const y = event.clientY - rect.top
-      const hour = Math.max(0, Math.min(23, Math.floor(y / HOUR_HEIGHT)))
+      const rawHour = Math.floor(y / HOUR_HEIGHT)
+      const hour = Math.min(TIME_END_HOUR, Math.max(TIME_START_HOUR, TIME_START_HOUR + rawHour))
       const minutes = Math.floor((y % HOUR_HEIGHT) / (HOUR_HEIGHT / 60))
-      
+
       dragStore.setTargetTime(`${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0').substring(0, 2)}`)
       targetDateIndex.value = dateIndex
       dragStore.setTargetDate(weekDays.value[dateIndex].dateStr)
@@ -153,7 +156,9 @@ function getEffectiveStartTime(targetTime: string): string {
   const offsetMinutes = Math.round(LIST_DRAG_OFFSET / (HOUR_HEIGHT / 60))
   const [hour, min] = targetTime.split(':').map(Number)
   const totalMinutes = hour * 60 + min - offsetMinutes
-  const clampedMinutes = Math.max(0, Math.min(24 * 60 - 1, totalMinutes))
+  const minMin = TIME_START_HOUR * 60
+  const maxMin = TIME_END_HOUR * 60 + 59
+  const clampedMinutes = Math.max(minMin, Math.min(maxMin, totalMinutes))
   const h = Math.floor(clampedMinutes / 60)
   const m = clampedMinutes % 60
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
@@ -235,18 +240,18 @@ onMounted(() => {
     <!-- 时间轴区域（包含 sticky 表头） -->
     <div class="flex-1 overflow-y-auto scrollbar-thin" style="-webkit-overflow-scrolling: touch;">
       <!-- 日期头部（sticky） -->
-      <div class="grid border-b border-gray-200 bg-white sticky top-0 z-10" style="grid-template-columns: 64px repeat(7, 1fr);">
+      <div class="grid border-b border-gray-200 bg-white sticky top-0 z-10" style="grid-template-columns: 40px repeat(7, 1fr);">
         <div class="border-r border-gray-200" />
         <div
           v-for="day in weekDays"
           :key="day.dateStr"
-          class="border-r border-gray-200 last:border-r-0 py-2 text-center"
+          class="border-r border-gray-200 last:border-r-0 py-1.5 md:py-2 text-center"
         >
           <div class="text-xs text-gray-500">{{ day.dayName }}</div>
           <div
             :class="[
-              'text-lg font-semibold mt-0.5',
-              day.isToday ? 'w-8 h-8 mx-auto rounded-full bg-primary text-white flex items-center justify-center' : 'text-gray-900'
+              'text-base font-semibold',
+              day.isToday ? 'w-7 h-7 mx-auto rounded-full bg-primary text-white flex items-center justify-center' : 'text-gray-900'
             ]"
           >
             {{ day.dayNum }}
@@ -254,14 +259,14 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="grid" style="grid-template-columns: 64px repeat(7, 1fr);">
+      <div class="grid" style="grid-template-columns: 40px repeat(7, 1fr);">
         <!-- 时间刻度 -->
         <div class="border-r border-gray-200 bg-white">
           <div
             v-for="slot in timeSlots"
             :key="slot.hour"
             :style="{ height: `${HOUR_HEIGHT}px` }"
-            class="flex items-start justify-end pr-2 pt-1 text-sm md:text-xs text-gray-500"
+            class="flex items-start justify-end pr-1 pt-1 text-xs text-gray-500"
           >
             {{ slot.label }}
           </div>
@@ -275,7 +280,7 @@ onMounted(() => {
             'relative border-r border-gray-200 last:border-r-0 day-column',
             targetDateIndex === index && 'drop-target-highlight'
           ]"
-          :style="{ height: `${24 * HOUR_HEIGHT}px` }"
+          :style="{ height: `${TIME_AXIS_HOURS * HOUR_HEIGHT + 100}px` }"
           @dragover="handleDragOver($event, index)"
           @dragleave="handleDragLeave"
           @drop="handleDrop($event, index)"
@@ -283,9 +288,9 @@ onMounted(() => {
         >
           <!-- 小时分隔线 -->
           <div
-            v-for="slot in timeSlots"
+            v-for="(slot, idx) in timeSlots"
             :key="slot.hour"
-            :style="{ top: `${slot.hour * HOUR_HEIGHT}px`, height: `${HOUR_HEIGHT}px` }"
+            :style="{ top: `${idx * HOUR_HEIGHT}px`, height: `${HOUR_HEIGHT}px` }"
             class="absolute left-0 right-0 border-b border-gray-100"
           />
 

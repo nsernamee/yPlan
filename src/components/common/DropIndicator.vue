@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { HOUR_HEIGHT, HEADER_HEIGHT, LIST_DRAG_OFFSET } from '@/utils/constants'
+import { HOUR_HEIGHT, HEADER_HEIGHT, LIST_DRAG_OFFSET, TIME_START_HOUR, TIME_END_HOUR } from '@/utils/constants'
+import { timeToPixels } from '@/utils/time'
 import { useDragStore } from '@/stores/drag'
 
 const dragStore = useDragStore()
@@ -19,8 +20,8 @@ const offsetMinutes = Math.round(LIST_DRAG_OFFSET / (HOUR_HEIGHT / 60))
 
 // 计算指示器 Y 位置（相对于时间网格）
 const yPosition = computed(() => {
-  const [hour, min] = props.time.split(':').map(Number)
-  let position = hour * HOUR_HEIGHT + (min / 60) * HOUR_HEIGHT
+  // 使用 timeToPixels 统一基于 TIME_START_HOUR 的像素映射
+  let position = timeToPixels(props.time)
   // 从列表拖入时向上偏移
   if (dragStore.isDraggingFromList) {
     position -= LIST_DRAG_OFFSET
@@ -34,8 +35,8 @@ const displayTime = computed(() => {
   
   const [hour, min] = props.time.split(':').map(Number)
   const totalMinutes = hour * 60 + min - offsetMinutes
-  // 边界保护
-  const clampedMinutes = Math.max(0, Math.min(24 * 60 - 1, totalMinutes))
+  // 边界保护：基于新的时间轴范围 [06:00, 23:59]
+  const clampedMinutes = Math.max(TIME_START_HOUR * 60, Math.min(TIME_END_HOUR * 60 + 59, totalMinutes))
   const h = Math.floor(clampedMinutes / 60)
   const m = clampedMinutes % 60
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`

@@ -6,6 +6,11 @@ export const MOVE_THRESHOLD = 5 // 移动阈值（像素）
 export const MIN_DURATION = 5 // 最小任务持续时间（分钟）
 export const LIST_DRAG_OFFSET = 40 // 从列表拖入时虚线上移像素数（使虚线显示在预览块上方）
 
+// 时间轴范围（从早上6点到晚上11点59分）
+export const TIME_START_HOUR = 6 // 时间轴起始小时（包含）
+export const TIME_END_HOUR = 23 // 时间轴结束小时（包含，即显示到23:59）
+export const TIME_AXIS_HOURS = TIME_END_HOUR - TIME_START_HOUR + 1 // 可见小时数（18小时）
+
 // 任务颜色
 export const TASK_COLORS = {
   blue: { bg: 'bg-task-blue/20', border: 'border-task-blue', text: 'text-task-blue' },

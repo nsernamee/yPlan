@@ -55,33 +55,33 @@ const createTask = () => {
 
 <template>
   <!-- 顶部导航 - 磨砂玻璃效果 -->
-  <header class="fixed top-0 left-0 right-0 h-14 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-700/50 z-50 flex items-center justify-between px-4">
+  <header class="fixed top-0 left-0 right-0 h-14 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-700/50 z-50 flex items-center justify-between px-3 sm:px-4 gap-1 sm:gap-2 overflow-hidden">
     <!-- 左侧 Logo -->
-    <div class="flex items-center gap-2">
-      <div class="w-8 h-8 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/25">
-        <Calendar class="w-5 h-5 text-white" />
+    <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+      <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/25">
+        <Calendar class="w-4 h-4 sm:w-5 sm:h-5 text-white" />
       </div>
-      <span class="text-lg font-semibold text-gray-900 dark:text-gray-100 hidden sm:block">yPlan</span>
+      <span class="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 hidden sm:block">yPlan</span>
     </div>
 
     <!-- 中间：日期导航 + 视图切换 -->
-    <div class="flex items-center gap-4">
+    <div class="flex items-center gap-1 sm:gap-2 md:gap-4 min-w-0">
       <!-- 日期导航 -->
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-1 sm:gap-2">
         <button
           @click="goPrev"
-          class="p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors btn-apple"
+          class="p-1 sm:p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors btn-apple"
         >
-          <ChevronLeft class="w-5 h-5 text-gray-600 dark:text-gray-400" />
+          <ChevronLeft class="w-4 h-4 sm:w-5 sm:h-5 text-gray-600 dark:text-gray-400" />
         </button>
-        <span class="text-sm font-medium text-gray-900 dark:text-gray-100 min-w-[120px] text-center">
+        <span class="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100 min-w-[60px] sm:min-w-[120px] text-center truncate">
           {{ dateDisplay }}
         </span>
         <button
           @click="goNext"
-          class="p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors btn-apple"
+          class="p-1 sm:p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors btn-apple"
         >
-          <ChevronRight class="w-5 h-5 text-gray-600 dark:text-gray-400" />
+          <ChevronRight class="w-4 h-4 sm:w-5 sm:h-5 text-gray-600 dark:text-gray-400" />
         </button>
       </div>
 
@@ -92,7 +92,7 @@ const createTask = () => {
           :key="view"
           @click="switchView(view)"
           :class="[
-            'px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-200',
+            'px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium rounded-lg transition-all duration-200',
             viewType === view
               ? 'bg-white dark:bg-gray-700 text-primary dark:text-primary-light shadow-sm'
               : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
@@ -104,28 +104,28 @@ const createTask = () => {
     </div>
 
     <!-- 右侧：深色模式 + 今日 + 新建 -->
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-1 sm:gap-2 shrink-0">
       <!-- 深色模式切换 -->
       <button
         @click="emit('toggle-dark')"
-        class="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors btn-apple"
+        class="p-1.5 sm:p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors btn-apple"
         :title="isDark ? '切换到浅色模式' : '切换到深色模式'"
       >
-        <Sun v-if="isDark" class="w-5 h-5 text-yellow-400" />
-        <Moon v-else class="w-5 h-5 text-gray-600 dark:text-gray-400" />
+        <Sun v-if="isDark" class="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400" />
+        <Moon v-else class="w-4 h-4 sm:w-5 sm:h-5 text-gray-600 dark:text-gray-400" />
       </button>
 
       <button
         @click="goToday"
-        class="px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors btn-apple"
+        class="hidden xs:inline-flex px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors btn-apple"
       >
         今天
       </button>
       <button
         @click="createTask"
-        class="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary-light hover:shadow-lg hover:shadow-primary/25 transition-all duration-200"
+        class="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 bg-primary text-white text-xs sm:text-sm font-medium rounded-xl hover:bg-primary-light hover:shadow-lg hover:shadow-primary/25 transition-all duration-200"
       >
-        <Plus class="w-4 h-4" />
+        <Plus class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
         <span class="hidden sm:inline">新建</span>
       </button>
     </div>

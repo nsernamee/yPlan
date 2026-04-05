@@ -115,7 +115,7 @@ export const useTaskStore = defineStore('task', () => {
   // ========== TaskSchedule CRUD ==========
 
   // 为任务创建日程
-  async function scheduleTaskOnDate(taskId: string, date: string, startTime: string = '01:00', endTime: string = '02:00') {
+  async function scheduleTaskOnDate(taskId: string, date: string, startTime: string = '09:00', endTime: string = '10:00') {
     const schedule: TaskSchedule = {
       id: db.generateId(),
       taskId,

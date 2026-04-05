@@ -17,6 +17,9 @@ const emit = defineEmits<{
 const taskStore = useTaskStore()
 const dragStore = useDragStore()
 
+// 检测是否触摸设备（触摸设备上禁用 HTML5 DnD，避免 ghost image 双重气泡）
+const isTouchDevice = 'ontouchstart' in window
+
 // 所有任务（按创建时间倒序）
 const allTasks = computed(() => {
   return [...taskStore.tasks].sort((a, b) => b.createdAt - a.createdAt)
@@ -148,6 +151,7 @@ function handleTouchStart(task: Task, event: TouchEvent) {
     // 长按触发拖拽
     dragStore.startDragFromList(task, position)
     isTouchDragging.value = true  // 拖拽开始，遮罩层穿透
+    emit('close')  // 立即关闭任务列表
   }, LONG_PRESS_DURATION)
 }
 
@@ -345,7 +349,7 @@ onUnmounted(() => {
         <div
           v-for="task in allTasks"
           :key="task.id"
-          draggable="true"
+          :draggable="!isTouchDevice"
           @dragstart="handleDragStart(task, $event)"
           @dragend="handleDragEnd"
           @click="handleTaskClick(task)"

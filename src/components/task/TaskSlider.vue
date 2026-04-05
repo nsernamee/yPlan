@@ -3,16 +3,10 @@ import { ref, computed, onUnmounted } from 'vue'
 import { useTaskStore } from '@/stores/task'
 import { useDragStore } from '@/stores/drag'
 import type { Task, TaskSchedule } from '@/types'
-import { TASK_COLORS, HOUR_HEIGHT, MIN_DURATION } from '@/utils/constants'
+import { TASK_COLORS, HOUR_HEIGHT, MIN_DURATION, TIME_START_HOUR, TIME_END_HOUR, TIME_AXIS_HOURS } from '@/utils/constants'
 import type { TaskColorStyle } from '@/types'
 import { useDrag } from '@/composables/useDrag'
-import { offsetToMinutes, offsetTime, calculateDuration } from '@/utils/time'
-
-// 辅助函数：计算时间距离午夜的分钟数
-function calculateMinutesFromMidnight(timeStr: string): number {
-  const [hour, min] = timeStr.split(':').map(Number)
-  return hour * 60 + min
-}
+import { offsetToMinutes, offsetTime, calculateDuration, calculateTaskPosition, clampTime, pixelsToTime } from '@/utils/time'
 
 const props = defineProps<{
   task: Task
@@ -20,7 +14,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'drag-end': [payload: { taskId: string; scheduleId: string; position: { x: number; y: number } }]
+  'drag-end': [payload: { taskId: string; scheduleId: string; position: { x: number; y: number }; startTime?: string; endTime?: string }]
 }>()
 
 const taskStore = useTaskStore()
@@ -38,7 +32,6 @@ const isCustomColor = computed(() => {
 // 颜色样式
 const colorStyle = computed((): TaskColorStyle => {
   if (isCustomColor.value) {
-    // 自定义颜色：直接使用 hex 值
     return {
       bg: '',
       border: '',
@@ -47,16 +40,23 @@ const colorStyle = computed((): TaskColorStyle => {
       customBorder: props.task.color,
     }
   }
-  // 预设颜色：使用 TASK_COLORS
   return { ...TASK_COLORS[props.task.color as keyof typeof TASK_COLORS], customBg: '', customBorder: '' }
 })
 
 // 元素引用
 const sliderRef = ref<HTMLElement | null>(null)
 
-// 记录原始值
+// 记录原始值（在 handlePointerDown 中从 props 计算）
 let originalTop = 0
 let originalHeight = 60
+
+// move 操作的最终像素位置（用于 onEnd2D 精确保存）
+let moveFinalPixelY = 0
+
+// 时间轴像素范围（用于软限制）
+function getTimeAxisPixelRange() {
+  return { minPx: 0, maxPx: TIME_AXIS_HOURS * HOUR_HEIGHT }
+}
 
 // 时间显示（从 schedule 读取）
 const timeDisplay = computed(() => {
@@ -93,173 +93,213 @@ function handlePointerDown(event: PointerEvent, type: 'move' | 'resize-start' | 
   
   const el = sliderRef.value
   
-  // 记录原始值（从父组件传入的 style）
-  originalTop = parseFloat(el.style.top) || 0
-  originalHeight = parseFloat(el.style.height) || 60
-  
-  // 清除父组件样式，使用内联样式完全控制
+  // 从 props 数据计算原始位置，不依赖 DOM（避免拖拽残存值污染）
   if (type === 'resize-start' || type === 'resize-end') {
-    el.style.top = `${originalTop}px`
-    el.style.height = `${originalHeight}px`
+    const pos = calculateTaskPosition(props.schedule.startTime, props.schedule.endTime)
+    originalTop = pos.top
+    originalHeight = pos.height
+    
+    // 清除可能残留的 inline 样式
+    el.style.top = ''
+    el.style.height = ''
   }
-  
+
   startDrag(event, type, event.currentTarget as HTMLElement, {
-    // 传递任务信息用于全局拖拽
     task: props.task,
-    // 传递日程 ID
     scheduleId: props.schedule.id,
-    // 传递日程时间用于预览
     startTime: props.schedule.startTime,
     endTime: props.schedule.endTime,
-    // 初始为网格模式
     mode: 'grid',
-    // 自由拖拽阈值
     freeDragThreshold: 10,
-    // 是否允许自动切换到自由拖拽模式（周视图和月视图可以）
     allowAutoSwitchToFree: true,
-    
-    // 新版 2D 回调
-    onMove2D: (offset, position) => {
-      // 网格模式：仅垂直拖拽
-      if (dragMode.value === 'grid') {
-        if (type === 'move') {
-          // 整体拖动时向下偏移，露出虚线提示
-          const DRAG_OFFSET_Y = 16 // 向下偏移量
-          
-          // 边界检查：限制拖动范围，防止任务跨天
-          const duration = calculateDuration(props.schedule.startTime, props.schedule.endTime)
-          const startMinutes = calculateMinutesFromMidnight(props.schedule.startTime)
-          const endMinutes = calculateMinutesFromMidnight(props.schedule.endTime)
-          
-          // 计算最大向上和向下移动距离（分钟）
-          const maxUpMinutes = -startMinutes // 最大向上移动距离（到 00:00）
-          const maxDownMinutes = (24 * 60) - endMinutes // 最大向下移动距离（到 23:59）
-          
-          // 将偏移量转换为分钟
-          const deltaMinutes = offsetToMinutes(offset.y)
-          
-          // 限制偏移量
-          const clampedDeltaMinutes = Math.max(maxUpMinutes, Math.min(deltaMinutes, maxDownMinutes))
-          const clampedOffsetY = clampedDeltaMinutes * (HOUR_HEIGHT / 60)
-          
-          // 应用向下偏移
-          el.style.transform = `translateY(${clampedOffsetY + DRAG_OFFSET_Y}px)`
-          
-          // 实时更新目标时间（注意：虚线位置不需要偏移）
-          const newStartTime = offsetTime(props.schedule.startTime, clampedDeltaMinutes)
-          dragStore.setTargetTime(newStartTime)
-        } else if (type === 'resize-start') {
-          // 计算边界：向下拖会缩短时长，需要限制向下拖的最大距离
-          const currentDuration = calculateDuration(props.schedule.startTime, props.schedule.endTime)
-          const maxDeltaMinutes = Math.max(0, currentDuration - MIN_DURATION)
-          const maxDeltaPixels = maxDeltaMinutes * (HOUR_HEIGHT / 60)
-          
-          // 向下拖（offset.y > 0）时限制在 maxDeltaPixels 以内，向上拖不受限制
-          const clampedOffsetY = offset.y > 0 ? Math.min(offset.y, maxDeltaPixels) : offset.y
-          
-          el.style.top = `${originalTop + clampedOffsetY}px`
-          el.style.height = `${Math.max(MIN_DURATION * (HOUR_HEIGHT / 60), originalHeight - clampedOffsetY)}px`
-        } else if (type === 'resize-end') {
-          // 计算边界：向上拖会缩短时长，需要限制向上拖的最大距离
-          const currentDuration = calculateDuration(props.schedule.startTime, props.schedule.endTime)
-          const maxDeltaMinutes = Math.max(0, currentDuration - MIN_DURATION)
-          const maxDeltaPixels = maxDeltaMinutes * (HOUR_HEIGHT / 60)
-          
-          // 向上拖（offset.y < 0）时限制在 -maxDeltaPixels 以内，向下拖不受限制
-          const clampedOffsetY = offset.y < 0 ? Math.max(offset.y, -maxDeltaPixels) : offset.y
-          
-          el.style.height = `${Math.max(MIN_DURATION * (HOUR_HEIGHT / 60), originalHeight + clampedOffsetY)}px`
-        }
-      } else {
-        // 自由模式：隐藏原任务（全局预览会显示）
-        if (type === 'move') {
+
+    onMove2D: (offset) => {
+      // 视觉层在 grid/free 模式下都需要实时更新（卡片必须跟随鼠标）
+      const { minPx, maxPx } = getTimeAxisPixelRange()
+      const minHeightPx = MIN_DURATION * (HOUR_HEIGHT / 60)
+
+      if (type === 'move') {
+        // 整体移动：纯像素级软限制，不调用 offsetTime/clampTime（避免拖动时被钳位卡住）
+        const DRAG_OFFSET_Y = 16
+        
+        // 直接用 calculateTaskPosition 的返回值（已包含 clampTime，与视觉高度完全一致）
+        const { top: startTop, height: cardHeight } = calculateTaskPosition(
+          props.schedule.startTime,
+          props.schedule.endTime
+        )
+
+        let newY = startTop + offset.y
+        
+        // 像素级软限制：整体不能超出时间轴范围
+        if (newY < minPx) newY = minPx
+        if (newY + cardHeight > maxPx) newY = maxPx - cardHeight
+
+        // free 模式下隐藏原卡片（由全局 DragPreview 接管显示）
+        // grid 模式下原卡片通过 transform 跟随鼠标
+        if (dragMode.value === 'free') {
           el.style.opacity = '0'
-          el.style.transform = ''
-          
-          // 实时更新目标时间
-          const deltaMinutes = offsetToMinutes(offset.y)
-          const newStartTime = offsetTime(props.schedule.startTime, deltaMinutes)
-          dragStore.setTargetTime(newStartTime)
+          el.style.pointerEvents = 'none'
+        } else {
+          el.style.transform = `translateY(${newY - startTop + DRAG_OFFSET_Y}px)`
         }
+        
+        // 记录最终像素位置（供 onEnd2D 精确反算时间）
+        moveFinalPixelY = newY
+        
+        // 预览时间：基于最终像素位置反算（与视觉效果一致）
+        dragStore.setTargetTime(pixelsToTime(newY))
+
+      } else if (type === 'resize-start') {
+        // 调整开始边缘：top 不能 < 0，height >= minHeightPx，top 不能超过 bottom-minHeightPx
+        let newTop = originalTop + offset.y
+        let newHeight = originalHeight - offset.y
+
+        if (newTop < minPx) {
+          newHeight += (minPx - newTop)
+          newTop = minPx
+        }
+        if (newTop > maxPx - minHeightPx) {
+          newTop = maxPx - minHeightPx
+          newHeight = minHeightPx
+        }
+        if (newHeight < minHeightPx) {
+          newHeight = minHeightPx
+        }
+
+        el.style.top = `${newTop}px`
+        el.style.height = `${newHeight}px`
+
+      } else if (type === 'resize-end') {
+        // 调整结束边缘：bottom 不能 > maxPx，height >= minHeightPx，bottom 不能 < top+minHeightPx
+        let newHeight = originalHeight + offset.y
+        let newBottom = originalTop + newHeight
+
+        if (newBottom > maxPx) {
+          newHeight = maxPx - originalTop
+        }
+        if (newBottom < originalTop + minHeightPx) {
+          newHeight = minHeightPx
+        }
+        if (newHeight < minHeightPx) {
+          newHeight = minHeightPx
+        }
+
+        el.style.height = `${newHeight}px`
       }
     },
-    
+
     onEnd2D: (offset, moved, position) => {
-      // 恢复样式
+      // 恢复所有内联样式
       el.style.transform = ''
       el.style.opacity = ''
-      
+      el.style.pointerEvents = ''
+      if (type === 'resize-start' || type === 'resize-end') {
+        el.style.top = ''
+        el.style.height = ''
+      }
+
       // 没有移动 = 点击操作
       if (!moved) {
         dragStore.setTargetTime(null)
         taskStore.openEditPanel(props.task, props.schedule)
         return
       }
-      
-      // 自由拖拽模式：由父组件处理日期变更
+
+      // 自由拖拽模式：计算新时间并通过 emit 传递给父组件（父组件统一保存，避免异步竞态）
       if (dragMode.value === 'free' && type === 'move') {
-        // 发送事件通知父组件（周/月视图）
+        let newStart = clampTime(pixelsToTime(moveFinalPixelY))
+        const duration = calculateDuration(props.schedule.startTime, props.schedule.endTime)
+        let newEnd = clampTime(offsetTime(newStart, duration))
+
+        // 检测 endTime 是否因 clamp 回绕
+        const startMin = (() => { const [h,m] = newStart.split(':').map(Number); return h*60+m })()
+        const endMin = (() => { const [h,m] = newEnd.split(':').map(Number); return h*60+m })()
+        if (endMin < startMin) {
+          newEnd = `${TIME_END_HOUR.toString().padStart(2, '0')}:59`
+          const adjustedStartMin = endMin - Math.min(duration, TIME_END_HOUR * 60 + 59 - TIME_START_HOUR * 60 - MIN_DURATION)
+          if (adjustedStartMin >= TIME_START_HOUR * 60) {
+            newStart = `${Math.floor(adjustedStartMin / 60).toString().padStart(2, '0')}:${(adjustedStartMin % 60).toString().padStart(2, '0')}`
+          }
+        }
+
+        dragStore.setTargetTime(null)
+        // 通过 payload 直接传递新时间数据，让父组件一次性保存（时间+日期）
         emit('drag-end', {
           taskId: props.task.id,
           scheduleId: props.schedule.id,
           position,
+          startTime: newStart,
+          endTime: newEnd,
         })
         return
       }
-      
-      // 网格模式：仅处理时间变更
+
+      // 网格模式：统一使用 clampTime 处理所有时间变更
       const deltaMinutes = offsetToMinutes(offset.y)
-      
-      if (deltaMinutes !== 0) {
+
+      if (deltaMinutes !== 0 || type !== 'move') {
         if (type === 'move') {
+          // 基于最终像素位置反算时间（与拖动视觉效果100%一致）
+          let newStart = clampTime(pixelsToTime(moveFinalPixelY))
+          // 保持原始持续时间
           const duration = calculateDuration(props.schedule.startTime, props.schedule.endTime)
-          const newStart = offsetTime(props.schedule.startTime, deltaMinutes)
-          const newEnd = offsetTime(props.schedule.startTime, deltaMinutes + duration)
-          
-          // 边界检查：确保新时长为正数
-          const newDuration = calculateDuration(newStart, newEnd)
-          if (newDuration <= 0) {
-            return
+          let newEnd = clampTime(offsetTime(newStart, duration))
+
+          // 关键：检测 endTime 是否因 clamp 回绕（如 23:40 + duration → 00:30 → clamp → 06:00）
+          const startMin = (() => { const [h,m] = newStart.split(':').map(Number); return h*60+m })()
+          const endMin = (() => { const [h,m] = newEnd.split(':').map(Number); return h*60+m })()
+          if (endMin < startMin) {
+            // 回绕了：锁定 endTime 到时间轴底部，回退 startTime
+            newEnd = `${TIME_END_HOUR.toString().padStart(2, '0')}:59`
+            const adjustedStartMin = endMin - Math.min(duration, TIME_END_HOUR * 60 + 59 - TIME_START_HOUR * 60 - MIN_DURATION)
+            if (adjustedStartMin >= TIME_START_HOUR * 60) {
+              newStart = `${Math.floor(adjustedStartMin / 60).toString().padStart(2, '0')}:${(adjustedStartMin % 60).toString().padStart(2, '0')}`
+            }
           }
-          
-          // 更新日程时间
+
           taskStore.updateSchedule({
             id: props.schedule.id,
             startTime: newStart,
             endTime: newEnd,
           })
+          // 注意：grid 模式 move 不需要 emit('drag-end')，因为不需要跨日期移动
+          // targetTime 会在函数末尾统一清除（line 277）
+
         } else if (type === 'resize-start') {
-          // 边界验证
-          const currentDuration = calculateDuration(props.schedule.startTime, props.schedule.endTime)
-          const maxDeltaMinutes = Math.max(0, currentDuration - MIN_DURATION)
-          const clampedDeltaMinutes = deltaMinutes > 0 ? Math.min(deltaMinutes, maxDeltaMinutes) : deltaMinutes
+          const newStart = clampTime(offsetTime(props.schedule.startTime, deltaMinutes))
+          // 确保不晚于结束时间
+          const endMinTotal = (() => { const [h,m] = props.schedule.endTime.split(':').map(Number); return h*60+m })()
+          const startMinTotal = (() => { const [h,m] = newStart.split(':').map(Number); return h*60+m })()
           
-          const newStart = offsetTime(props.schedule.startTime, clampedDeltaMinutes)
-          taskStore.updateSchedule({
-            id: props.schedule.id,
-            startTime: newStart,
-          })
+          if (startMinTotal >= endMinTotal - MIN_DURATION) {
+            // 拉过了结束时间，回退到结束时间之前的最小间隔
+            const finalStart = offsetTime(props.schedule.endTime, -(MIN_DURATION + 1))
+            taskStore.updateSchedule({ id: props.schedule.id, startTime: finalStart })
+          } else {
+            taskStore.updateSchedule({ id: props.schedule.id, startTime: newStart })
+          }
+
         } else if (type === 'resize-end') {
-          // 边界验证
-          const currentDuration = calculateDuration(props.schedule.startTime, props.schedule.endTime)
-          const maxDeltaMinutes = Math.max(0, currentDuration - MIN_DURATION)
-          const clampedDeltaMinutes = deltaMinutes < 0 ? Math.max(deltaMinutes, -maxDeltaMinutes) : deltaMinutes
-          
-          const newEnd = offsetTime(props.schedule.endTime, clampedDeltaMinutes)
-          taskStore.updateSchedule({
-            id: props.schedule.id,
-            endTime: newEnd,
-          })
+          const newEnd = clampTime(offsetTime(props.schedule.endTime, deltaMinutes))
+          // 确保不早于开始时间
+          const startMinTotal = (() => { const [h,m] = props.schedule.startTime.split(':').map(Number); return h*60+m })()
+          const endMinTotal = (() => { const [h,m] = newEnd.split(':').map(Number); return h*60+m })()
+
+          if (endMinTotal <= startMinTotal + MIN_DURATION) {
+            // 拉到了开始时间之前或太近，推进到开始时间之后的最小间隔
+            const finalEnd = offsetTime(props.schedule.startTime, MIN_DURATION + 1)
+            taskStore.updateSchedule({ id: props.schedule.id, endTime: finalEnd })
+          } else {
+            taskStore.updateSchedule({ id: props.schedule.id, endTime: newEnd })
+          }
         }
       }
-      
-      // 清除目标时间
+
       dragStore.setTargetTime(null)
     },
   })
 }
 
-// 组件卸载时清理
 onUnmounted(() => {
   isDragging.value = false
   dragType.value = null

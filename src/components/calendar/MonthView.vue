@@ -290,7 +290,7 @@ onUnmounted(() => {
         <!-- 任务列表 -->
         <div class="space-y-0.5">
           <div
-            v-for="item in getTasksForDate(day.dateStr).slice(0, 3)"
+            v-for="item in getTasksForDate(day.dateStr).slice(0, 2)"
             :key="item.schedule.id"
             @click="handleTaskClick(item, $event)"
             @pointerdown="handleTaskDragStart(item, $event)"
@@ -309,10 +309,10 @@ onUnmounted(() => {
             {{ item.task.title }}
           </div>
           <div
-            v-if="getTasksForDate(day.dateStr).length > 3"
+            v-if="getTasksForDate(day.dateStr).length > 2"
             class="text-xs text-gray-500 px-1.5"
           >
-            +{{ getTasksForDate(day.dateStr).length - 3 }} 更多
+            +{{ getTasksForDate(day.dateStr).length - 2 }} 更多
           </div>
         </div>
       </div>
