@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">yPlan</string>
+    <string name="title_activity_main">yPlan</string>
+    <string name="package_name">com.yplan.app</string>
+    <string name="custom_url_scheme">com.yplan.app</string>
+</resources>

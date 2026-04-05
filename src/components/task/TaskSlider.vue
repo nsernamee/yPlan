@@ -4,6 +4,7 @@ import { useTaskStore } from '@/stores/task'
 import { useDragStore } from '@/stores/drag'
 import type { Task, TaskSchedule } from '@/types'
 import { TASK_COLORS, HOUR_HEIGHT, MIN_DURATION } from '@/utils/constants'
+import type { TaskColorStyle } from '@/types'
 import { useDrag } from '@/composables/useDrag'
 import { offsetToMinutes, offsetTime, calculateDuration } from '@/utils/time'
 
@@ -35,7 +36,7 @@ const isCustomColor = computed(() => {
 })
 
 // 颜色样式
-const colorStyle = computed(() => {
+const colorStyle = computed((): TaskColorStyle => {
   if (isCustomColor.value) {
     // 自定义颜色：直接使用 hex 值
     return {
@@ -47,7 +48,7 @@ const colorStyle = computed(() => {
     }
   }
   // 预设颜色：使用 TASK_COLORS
-  return TASK_COLORS[props.task.color as keyof typeof TASK_COLORS]
+  return { ...TASK_COLORS[props.task.color as keyof typeof TASK_COLORS], customBg: '', customBorder: '' }
 })
 
 // 元素引用

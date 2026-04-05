@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useDragStore } from '@/stores/drag'
 import { TASK_COLORS } from '@/utils/constants'
+import type { TaskColorStyle } from '@/types'
 
 const dragStore = useDragStore()
 
@@ -42,8 +43,8 @@ const isCustomColor = computed(() => {
 })
 
 // 任务颜色样式
-const colorStyle = computed(() => {
-  if (!dragStore.draggingTask) return {}
+const colorStyle = computed((): TaskColorStyle => {
+  if (!dragStore.draggingTask) return { bg: '', border: '', text: '', customBg: '', customBorder: '' }
   
   if (isCustomColor.value) {
     return {
@@ -55,7 +56,7 @@ const colorStyle = computed(() => {
     }
   }
   
-  return TASK_COLORS[dragStore.draggingTask.color as keyof typeof TASK_COLORS]
+  return { ...TASK_COLORS[dragStore.draggingTask.color as keyof typeof TASK_COLORS], customBg: '', customBorder: '' }
 })
 
 // 任务信息
