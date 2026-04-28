@@ -99,6 +99,8 @@ function handleSave() {
         endTime: endTime.value,
       })
     }
+    
+    closePanel()  // 保存后关闭面板
   } else {
     // 创建模式：创建任务
     taskStore.createTask({
@@ -106,6 +108,8 @@ function handleSave() {
       color: color.value,
       note: note.value,
     })
+    
+    closePanel()  // 保存后关闭面板
   }
 }
 
