@@ -285,7 +285,14 @@ function handlePointerDown(event: PointerEvent, type: 'move' | 'resize-start' | 
           const startMinTotal = (() => { const [h,m] = props.schedule.startTime.split(':').map(Number); return h*60+m })()
           const endMinTotal = (() => { const [h,m] = newEnd.split(':').map(Number); return h*60+m })()
 
-          if (endMinTotal <= startMinTotal + MIN_DURATION) {
+          // 检测 clamp 导致的时间回绕（超下界时 endTime 被钳到 06:00，跑到 startTime 前面）
+          const isWrapped = endMinTotal < startMinTotal
+
+          if (isWrapped) {
+            // 回绕了：锁定到时间轴最大值，保持视觉层的一致性（卡片停在底部）
+            const finalEnd = `${TIME_END_HOUR.toString().padStart(2, '0')}:59`
+            taskStore.updateSchedule({ id: props.schedule.id, endTime: finalEnd })
+          } else if (endMinTotal <= startMinTotal + MIN_DURATION) {
             // 拉到了开始时间之前或太近，推进到开始时间之后的最小间隔
             const finalEnd = offsetTime(props.schedule.startTime, MIN_DURATION + 1)
             taskStore.updateSchedule({ id: props.schedule.id, endTime: finalEnd })
