@@ -13,8 +13,8 @@ const props = defineProps<{
   includeHeader?: boolean // 是否包含头部高度偏移（日视图需要，周视图不需要）
 }>()
 
-// 从列表拖入时，预览块有 16px 下偏移 + 居中定位(高60px→上下各30px)
-// 需要向上偏移约 40px 使虚线显示在预览块上方（与日历上拖动效果一致）
+// 从列表拖入时，桌面端有 ghost image、移动端仅 DragPreview 卡片(60px高+居中+16px下偏移)
+// 向上偏移使虚线显示在预览块/卡片上方（22px 兼顾两端视觉效果）
 // 偏移对应的分钟数
 const offsetMinutes = Math.round(LIST_DRAG_OFFSET / (HOUR_HEIGHT / 60))
 

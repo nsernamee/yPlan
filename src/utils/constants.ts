@@ -4,7 +4,7 @@ export const HEADER_HEIGHT = 40 // 头部高度
 export const TIME_GRANULARITY = 1 // 时间粒度（分钟），1 = 精确到每分钟
 export const MOVE_THRESHOLD = 5 // 移动阈值（像素）
 export const MIN_DURATION = 5 // 最小任务持续时间（分钟）
-export const LIST_DRAG_OFFSET = 40 // 从列表拖入时虚线上移像素数（使虚线显示在预览块上方）
+export const LIST_DRAG_OFFSET = 22 // 从列表拖入时虚线上移像素数（兼顾桌面端 ghost image 和移动端 DragPreview 卡片）
 
 // 时间轴范围（从早上6点到晚上11点59分）
 export const TIME_START_HOUR = 6 // 时间轴起始小时（包含）

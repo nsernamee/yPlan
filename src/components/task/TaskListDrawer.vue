@@ -4,7 +4,7 @@ import { useTaskStore } from '@/stores/task'
 import { useDragStore } from '@/stores/drag'
 import type { Task } from '@/types'
 import { X } from 'lucide-vue-next'
-import { HOUR_HEIGHT, HEADER_HEIGHT } from '@/utils/constants'
+import { HOUR_HEIGHT, HEADER_HEIGHT, TIME_START_HOUR, TIME_END_HOUR } from '@/utils/constants'
 
 const props = defineProps<{
   visible: boolean
@@ -189,7 +189,8 @@ function handleTouchMove(event: TouchEvent) {
     // 周视图：计算时间和日期索引
     const rect = dayColumn.getBoundingClientRect()
     const y = touch.clientY - rect.top
-    const hour = Math.max(0, Math.min(23, Math.floor(y / HOUR_HEIGHT)))
+    const rawHour = Math.floor(y / HOUR_HEIGHT)
+    const hour = Math.min(TIME_END_HOUR, Math.max(TIME_START_HOUR, TIME_START_HOUR + rawHour))
     const minutes = Math.floor((y % HOUR_HEIGHT) / (HOUR_HEIGHT / 60))
     
     dragStore.setTargetTime(`${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0').substring(0, 2)}`)
@@ -209,7 +210,8 @@ function handleTouchMove(event: TouchEvent) {
     const rect = taskArea.getBoundingClientRect()
     const scrollTop = taskArea.scrollTop || 0
     const y = touch.clientY - rect.top + scrollTop - HEADER_HEIGHT
-    const hour = Math.max(0, Math.min(23, Math.floor(y / HOUR_HEIGHT)))
+    const rawHour = Math.floor(y / HOUR_HEIGHT)
+    const hour = Math.min(TIME_END_HOUR, Math.max(TIME_START_HOUR, TIME_START_HOUR + rawHour))
     const minutes = Math.floor((y % HOUR_HEIGHT) / (HOUR_HEIGHT / 60))
     
     dragStore.setTargetTime(`${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0').substring(0, 2)}`)
